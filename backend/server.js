@@ -1,5 +1,7 @@
-// backend/server.js - Fixed route imports
+// backend/server.js - Enhanced with real-time features
 const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
@@ -7,7 +9,15 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    methods: ["GET", "POST"]
+  }
+});
+
+const PORT = process.env.PORT || 3000;
 
 // Import database connection
 const { connectDB } = require('./config/database');
@@ -15,6 +25,7 @@ const { connectDB } = require('./config/database');
 // Import middleware
 const corsMiddleware = require('./middleware/cors');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const { authenticateSocket } = require('./middleware/auth');
 
 // Security middleware
 app.use(helmet({
@@ -50,15 +61,18 @@ if (process.env.NODE_ENV === 'development') {
 // Serve static files
 app.use('/uploads', express.static('uploads'));
 
+// Make io instance available to routes
+app.set('io', io);
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
-    // You can add database health check here
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      memory: process.memoryUsage()
+      memory: process.memoryUsage(),
+      connections: io.engine.clientsCount
     });
   } catch (error) {
     res.status(503).json({
@@ -92,7 +106,7 @@ const {
   paginationValidation
 } = require('./middleware/validation');
 
-// Auth routes (using controllers directly)
+// Auth routes
 app.post('/api/auth/register', registerValidation, authController.register);
 app.post('/api/auth/login', loginValidation, authController.login);
 app.post('/api/auth/refresh', authController.refreshToken);
@@ -100,7 +114,7 @@ app.get('/api/auth/profile', authenticateToken, authController.getProfile);
 app.put('/api/auth/profile', authenticateToken, authController.updateProfile);
 app.post('/api/auth/change-password', authenticateToken, authController.changePassword);
 
-// Admin routes (using controllers directly)
+// Admin routes
 app.get('/api/admin/dashboard/overview', 
   authenticateToken, 
   authorizeRole(['admin']), 
@@ -128,7 +142,7 @@ app.post('/api/admin/reject-user',
   adminController.rejectUser
 );
 
-// Client routes (using controllers directly)
+// Client routes
 app.get('/api/client/dashboard', 
   authenticateToken, 
   authorizeRole(['client']), 
@@ -161,7 +175,7 @@ app.get('/api/client/bills/:id',
   clientController.getBill
 );
 
-// Employee routes (using controllers directly)
+// Employee routes
 app.get('/api/employees/sales/dashboard', 
   authenticateToken, 
   authorizeRole(['sales_purchase', 'admin']), 
@@ -178,7 +192,7 @@ app.get('/api/employees/office/dashboard',
   employeeController.getOfficeDashboard
 );
 
-// Feedback routes (using controllers directly)
+// Feedback routes
 app.get('/api/feedback', 
   authenticateToken, 
   feedbackController.getAllFeedback
@@ -202,7 +216,55 @@ app.post('/api/feedback/:threadId/reply',
   feedbackController.replyToFeedback
 );
 
-// Import and use route modules (with error handling)
+// File upload endpoint
+app.post('/api/upload', 
+  authenticateToken,
+  upload.array('files', 5),
+  handleUploadError,
+  async (req, res) => {
+    try {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No files uploaded'
+        });
+      }
+
+      const uploadedFiles = req.files.map(file => ({
+        filename: file.filename,
+        originalName: file.originalname,
+        size: file.size,
+        mimetype: file.mimetype,
+        path: file.path.replace(/\\/g, '/'),
+        url: `/uploads/${req.body.category || 'general'}/${file.filename}`
+      }));
+
+      // Notify relevant users about file upload
+      const io = req.app.get('io');
+      io.emit('fileUploaded', {
+        files: uploadedFiles,
+        uploadedBy: req.user.id,
+        timestamp: new Date()
+      });
+
+      res.json({
+        success: true,
+        message: 'Files uploaded successfully',
+        data: uploadedFiles
+      });
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Upload failed',
+        error: error.message
+      });
+    }
+  }
+);
+
+// Import and use route modules with error handling
 try {
   // Admin route modules
   const adminDashboardRoutes = require('./routes/admin/dashboard');
@@ -247,45 +309,102 @@ try {
   console.log('Continuing with basic routes only...');
 }
 
-// File upload endpoint
-app.post('/api/upload', 
-  authenticateToken,
-  upload.array('files', 5),
-  handleUploadError,
-  async (req, res) => {
-    try {
-      if (!req.files || req.files.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'No files uploaded'
-        });
-      }
+// Socket.IO connection handling
+const connectedUsers = new Map();
 
-      const uploadedFiles = req.files.map(file => ({
-        filename: file.filename,
-        originalName: file.originalname,
-        size: file.size,
-        mimetype: file.mimetype,
-        path: file.path.replace(/\\/g, '/'), // Normalize path separators
-        url: `/uploads/${req.body.category || 'general'}/${file.filename}`
-      }));
+io.use(authenticateSocket);
 
-      res.json({
-        success: true,
-        message: 'Files uploaded successfully',
-        data: uploadedFiles
-      });
+io.on('connection', (socket) => {
+  console.log(`User connected: ${socket.userId} (${socket.userRole})`);
+  
+  // Store user connection
+  connectedUsers.set(socket.userId, {
+    socketId: socket.id,
+    role: socket.userRole,
+    connectedAt: new Date()
+  });
 
-    } catch (error) {
-      console.error('Upload error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Upload failed',
-        error: error.message
-      });
-    }
-  }
-);
+  // Join role-based rooms
+  socket.join(`role:${socket.userRole}`);
+  
+  // Join user-specific room
+  socket.join(`user:${socket.userId}`);
+
+  // Handle user status
+  socket.on('updateStatus', (status) => {
+    socket.broadcast.emit('userStatusUpdate', {
+      userId: socket.userId,
+      status,
+      timestamp: new Date()
+    });
+  });
+
+  // Handle typing indicators for feedback/chat
+  socket.on('typing', (data) => {
+    socket.to(`thread:${data.threadId}`).emit('userTyping', {
+      userId: socket.userId,
+      threadId: data.threadId,
+      isTyping: data.isTyping
+    });
+  });
+
+  // Handle joining specific threads/rooms
+  socket.on('joinThread', (threadId) => {
+    socket.join(`thread:${threadId}`);
+  });
+
+  socket.on('leaveThread', (threadId) => {
+    socket.leave(`thread:${threadId}`);
+  });
+
+  // Handle real-time notifications
+  socket.on('markNotificationRead', (notificationId) => {
+    // This would typically update the database
+    socket.emit('notificationMarkedRead', { notificationId });
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.userId}`);
+    connectedUsers.delete(socket.userId);
+    
+    // Notify other users about disconnection
+    socket.broadcast.emit('userDisconnected', {
+      userId: socket.userId,
+      timestamp: new Date()
+    });
+  });
+
+  // Send initial data
+  socket.emit('connected', {
+    userId: socket.userId,
+    role: socket.userRole,
+    onlineUsers: Array.from(connectedUsers.keys()),
+    timestamp: new Date()
+  });
+});
+
+// Helper functions for real-time notifications
+const sendNotificationToUser = (userId, notification) => {
+  io.to(`user:${userId}`).emit('notification', notification);
+};
+
+const sendNotificationToRole = (role, notification) => {
+  io.to(`role:${role}`).emit('notification', notification);
+};
+
+const sendToThread = (threadId, event, data) => {
+  io.to(`thread:${threadId}`).emit(event, data);
+};
+
+// Make real-time functions available globally
+global.socketHelpers = {
+  sendNotificationToUser,
+  sendNotificationToRole,
+  sendToThread,
+  getConnectedUsers: () => Array.from(connectedUsers.entries()),
+  isUserOnline: (userId) => connectedUsers.has(userId)
+};
 
 // 404 handler
 app.use(notFound);
@@ -299,10 +418,11 @@ const startServer = async () => {
     // Connect to database
     await connectDB();
     
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`Health check: http://localhost:${PORT}/health`);
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+      console.log(`⚡ Socket.IO enabled for real-time features`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

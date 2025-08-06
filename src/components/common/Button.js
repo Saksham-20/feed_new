@@ -1,146 +1,104 @@
-// src/components/common/Button.js
+/ src/components/common/Button.js
 import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  View,
-} from 'react-native';
-import Icon from 'react-native-vector-icons/Feather';
-import { theme } from '../../styles/theme';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
 
-const Button = ({
-  title,
-  onPress,
-  variant = 'primary',
-  size = 'medium',
-  loading = false,
+const Button = ({ 
+  title, 
+  onPress, 
+  variant = 'primary', 
+  size = 'medium', 
+  loading = false, 
   disabled = false,
-  icon,
-  iconPosition = 'left',
-  style,
-  textStyle,
-  ...props
+  style 
 }) => {
-  const buttonStyles = [
-    styles.button,
-    styles[variant],
-    styles[size],
-    (disabled || loading) && styles.disabled,
-    style,
-  ];
-
-  const textStyles = [
-    styles.text,
-    styles[`${variant}Text`],
-    styles[`${size}Text`],
-    textStyle,
-  ];
-
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator
-            size="small"
-            color={variant === 'primary' ? '#FFFFFF' : theme.colors.primary}
-          />
-          {title && <Text style={[textStyles, styles.loadingText]}>{title}</Text>}
-        </View>
-      );
-    }
-
-    const textElement = <Text style={textStyles}>{title}</Text>;
+  const getButtonStyle = () => {
+    const baseStyle = [styles.button, styles[size]];
     
-    if (!icon) return textElement;
+    if (disabled || loading) {
+      baseStyle.push(styles.disabled);
+    } else {
+      baseStyle.push(styles[variant]);
+    }
+    
+    return baseStyle;
+  };
 
-    const iconElement = (
-      <Icon
-        name={icon}
-        size={size === 'small' ? 16 : 20}
-        color={variant === 'primary' ? '#FFFFFF' : theme.colors.primary}
-      />
-    );
-
-    return (
-      <View style={styles.contentContainer}>
-        {iconPosition === 'left' && iconElement}
-        {textElement}
-        {iconPosition === 'right' && iconElement}
-      </View>
-    );
+  const getTextStyle = () => {
+    const baseStyle = [styles.text, styles[`${size}Text`]];
+    
+    if (variant === 'secondary' || variant === 'outline') {
+      baseStyle.push(styles.secondaryText);
+    } else {
+      baseStyle.push(styles.primaryText);
+    }
+    
+    return baseStyle;
   };
 
   return (
     <TouchableOpacity
-      style={buttonStyles}
+      style={[...getButtonStyle(), style]}
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.7}
-      {...props}
+      activeOpacity={0.8}
     >
-      {renderContent()}
+      {loading ? (
+        <ActivityIndicator 
+          size="small" 
+          color={variant === 'primary' ? '#FFFFFF' : '#6366F1'} 
+        />
+      ) : (
+        <Text style={getTextStyle()}>{title}</Text>
+      )}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 12,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
   },
   // Variants
   primary: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#6366F1',
   },
   secondary: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
+    backgroundColor: '#F3F4F6',
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#6366F1',
   },
-  ghost: {
-    backgroundColor: 'transparent',
+  disabled: {
+    backgroundColor: '#E5E7EB',
+    opacity: 0.6,
   },
   // Sizes
   small: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    minHeight: 36,
   },
   medium: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    minHeight: 44,
   },
   large: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    minHeight: 52,
   },
   // Text styles
   text: {
     fontWeight: '600',
-    textAlign: 'center',
   },
   primaryText: {
     color: '#FFFFFF',
   },
   secondaryText: {
-    color: theme.colors.primary,
-  },
-  outlineText: {
-    color: theme.colors.textPrimary,
-  },
-  ghostText: {
-    color: theme.colors.primary,
+    color: '#6366F1',
   },
   smallText: {
     fontSize: 14,
@@ -150,22 +108,6 @@ const styles = StyleSheet.create({
   },
   largeText: {
     fontSize: 18,
-  },
-  // States
-  disabled: {
-    opacity: 0.6,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginLeft: 8,
-  },
-  contentContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
 });
 

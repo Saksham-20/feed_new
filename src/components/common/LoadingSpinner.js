@@ -1,67 +1,66 @@
 // src/components/common/LoadingSpinner.js
-import React from 'react';
-import {
-  View,
-  ActivityIndicator,
-  Text,
-  StyleSheet,
-  Modal,
-} from 'react-native';
-import { theme } from '../../styles/theme';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Animated } from 'react-native';
 
-const LoadingSpinner = ({
-  visible = true,
-  text = 'Loading...',
-  overlay = false,
-  size = 'large',
-  color = theme.colors.primary?.['500'] || theme.colors.primary || '#6366F1',
-}) => {
-  if (overlay) {
-    return (
-      <Modal
-        transparent
-        visible={visible}
-        animationType="fade"
-      >
-        <View style={styles.overlay}>
-          <View style={styles.container}>
-            <ActivityIndicator size={size} color={color} />
-            {text && <Text style={styles.text}>{text}</Text>}
-          </View>
-        </View>
-      </Modal>
-    );
-  }
+const LoadingSpinner = ({ size = 'medium', color = '#6366F1' }) => {
+  const spinValue = useRef(new Animated.Value(0)).current;
 
-  if (!visible) return null;
+  useEffect(() => {
+    const spin = () => {
+      spinValue.setValue(0);
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }).start(() => spin());
+    };
+    spin();
+  }, [spinValue]);
+
+  const rotate = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const getSize = () => {
+    switch (size) {
+      case 'small':
+        return 20;
+      case 'large':
+        return 40;
+      default:
+        return 30;
+    }
+  };
+
+  const spinnerSize = getSize();
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size={size} color={color} />
-      {text && <Text style={styles.text}>{text}</Text>}
+      <Animated.View
+        style={[
+          styles.spinner,
+          {
+            width: spinnerSize,
+            height: spinnerSize,
+            borderColor: `${color}20`,
+            borderTopColor: color,
+            transform: [{ rotate }],
+          },
+        ]}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   container: {
-    backgroundColor: '#FFFFFF',
-    padding: 24,
-    borderRadius: 12,
     alignItems: 'center',
-    minWidth: 120,
+    justifyContent: 'center',
   },
-  text: {
-    marginTop: 12,
-    fontSize: 16,
-    color: theme.colors.textPrimary || theme.colors.gray?.['800'] || '#1E293B',
-    textAlign: 'center',
+  spinner: {
+    borderWidth: 2,
+    borderRadius: 100,
   },
 });
 

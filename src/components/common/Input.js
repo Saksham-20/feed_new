@@ -1,173 +1,119 @@
 // src/components/common/Input.js
 import React, { useState } from 'react';
-import {
-  View,
-  TextInput,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
+import { 
+  View, 
+  TextInput, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity 
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import { theme } from '../../styles/theme';
 
 const Input = ({
   label,
   value,
   onChangeText,
   placeholder,
+  secureTextEntry,
+  keyboardType = 'default',
   error,
-  required = false,
+  multiline = false,
+  numberOfLines = 1,
+  editable = true,
+  style,
   leftIcon,
   rightIcon,
   onRightIconPress,
-  secureTextEntry = false,
-  style,
-  inputStyle,
-  multiline = false,
-  numberOfLines = 1,
-  ...props
 }) => {
+  const [isSecure, setIsSecure] = useState(secureTextEntry);
   const [isFocused, setIsFocused] = useState(false);
-  const [isPasswordVisible, setIsPasswordVisible] = useState(!secureTextEntry);
-
-  const handleSecureTextToggle = () => {
-    setIsPasswordVisible(!isPasswordVisible);
-  };
-
-  const containerStyles = [
-    styles.container,
-    isFocused && styles.focused,
-    error && styles.error,
-    style,
-  ];
-
-  const inputStyles = [
-    styles.input,
-    leftIcon && styles.inputWithLeftIcon,
-    (rightIcon || secureTextEntry) && styles.inputWithRightIcon,
-    multiline && styles.multilineInput,
-    inputStyle,
-  ];
 
   return (
-    <View style={styles.wrapper}>
-      {label && (
-        <Text style={styles.label}>
-          {label}
-          {required && <Text style={styles.required}> *</Text>}
-        </Text>
-      )}
-      
-      <View style={containerStyles}>
+    <View style={[styles.container, style]}>
+      {label && <Text style={styles.label}>{label}</Text>}
+      <View style={[
+        styles.inputContainer,
+        isFocused && styles.inputContainerFocused,
+        error && styles.inputContainerError,
+      ]}>
         {leftIcon && (
-          <Icon
-            name={leftIcon}
-            size={20}
-            color={isFocused ? theme.colors.primary : '#9CA3AF'}
-            style={styles.leftIcon}
-          />
+          <Icon name={leftIcon} size={20} color="#6B7280" style={styles.leftIcon} />
         )}
-        
         <TextInput
-          style={inputStyles}
+          style={[styles.input, leftIcon && styles.inputWithLeftIcon]}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor="#9CA3AF"
-          secureTextEntry={secureTextEntry && !isPasswordVisible}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          secureTextEntry={isSecure}
+          keyboardType={keyboardType}
           multiline={multiline}
           numberOfLines={numberOfLines}
-          textAlignVertical={multiline ? 'top' : 'center'}
-          {...props}
+          editable={editable}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
         />
-        
         {secureTextEntry && (
           <TouchableOpacity
-            onPress={handleSecureTextToggle}
             style={styles.rightIcon}
+            onPress={() => setIsSecure(!isSecure)}
           >
-            <Icon
-              name={isPasswordVisible ? 'eye-off' : 'eye'}
-              size={20}
-              color="#9CA3AF"
-            />
+            <Icon name={isSecure ? 'eye' : 'eye-off'} size={20} color="#6B7280" />
           </TouchableOpacity>
         )}
-        
         {rightIcon && !secureTextEntry && (
           <TouchableOpacity
-            onPress={onRightIconPress}
             style={styles.rightIcon}
+            onPress={onRightIconPress}
           >
-            <Icon
-              name={rightIcon}
-              size={20}
-              color="#9CA3AF"
-            />
+            <Icon name={rightIcon} size={20} color="#6B7280" />
           </TouchableOpacity>
         )}
       </View>
-      
-      {error && (
-        <Text style={styles.errorText}>{error}</Text>
-      )}
+      {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  wrapper: {
-    marginBottom: 16,
+  container: {
+    marginVertical: 8,
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
+    fontWeight: '500',
+    color: '#374151',
     marginBottom: 8,
   },
-  required: {
-    color: '#EF4444',
-  },
-  container: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 16,
-  },
-  focused: {
-    borderColor: theme.colors.primary,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
   },
-  error: {
+  inputContainerFocused: {
+    borderColor: '#6366F1',
+  },
+  inputContainerError: {
     borderColor: '#EF4444',
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    color: theme.colors.textPrimary,
+    paddingHorizontal: 16,
     paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
   },
   inputWithLeftIcon: {
-    marginLeft: 12,
-  },
-  inputWithRightIcon: {
-    marginRight: 12,
-  },
-  multilineInput: {
-    paddingVertical: 16,
-    minHeight: 80,
+    paddingLeft: 8,
   },
   leftIcon: {
-    marginRight: 4,
+    marginLeft: 12,
   },
   rightIcon: {
-    padding: 4,
-    marginLeft: 4,
+    padding: 12,
   },
   errorText: {
     fontSize: 14,
