@@ -14,7 +14,7 @@ import Button from '../common/Button';
 import Input from '../common/Input';
 import Card from '../common/Card';
 import { theme } from '../../styles/theme';
-import { useFeedback } from '../context/FeedbackContext'; // FIXED PATH
+import { useFeedback } from '../../context/FeedbackContext'; // FIXED PATH - moved up one level
 import { validateRequired } from '../../utils/validation';
 
 const FeedbackForm = ({ 
@@ -81,7 +81,7 @@ const FeedbackForm = ({
     },
     { 
       key: 'billing', 
-      label: 'Billing Question', 
+      label: 'Billing Question', // FIXED TYPO - removed "lasrc/components/forms/FeedbackForm.js"
       icon: 'credit-card',
       description: 'Payment and billing related'
     },
@@ -127,56 +127,86 @@ const FeedbackForm = ({
     try {
       const result = mode === 'create' 
         ? await createThread(formData)
-        : await onSubmit(formData);
-        
-      if (result.success) {
-        Alert.alert('Success', 'Feedback submitted successfully');
-        // Reset form if creating new thread
-        if (mode === 'create') {
-          setFormData({
-            subject: '',
-            message: '',
-            priority: 'medium',
-            category: 'general',
-            attachments: [],
-          });
-        }
-      } else {
-        Alert.alert('Error', result.error || 'Failed to submit feedback');
+        : await sendMessage(formData);
+      
+      if (onSubmit) {
+        onSubmit(result);
+      }
+      
+      Alert.alert(
+        'Success',
+        mode === 'create' 
+          ? 'Feedback submitted successfully'
+          : 'Reply sent successfully'
+      );
+      
+      // Reset form after successful submission
+      if (mode === 'create') {
+        setFormData({
+          subject: '',
+          message: '',
+          priority: 'medium',
+          category: 'general',
+          attachments: [],
+        });
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to submit feedback');
+      console.error('Submit error:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to submit feedback'
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const updateFormData = (key, value) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
     // Clear error when user starts typing
-    if (errors[key]) {
-      setErrors(prev => ({ ...prev, [key]: null }));
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: null
+      }));
     }
   };
 
   const renderPrioritySelector = () => (
     <View style={styles.sectionContainer}>
       <Text style={styles.sectionTitle}>Priority Level</Text>
-      <View style={styles.optionsGrid}>
-        {priorities.map((priority) => (
+      <View style={styles.priorityGrid}>
+        {priorities.map(priority => (
           <TouchableOpacity
             key={priority.key}
             style={[
-              styles.optionCard,
-              formData.priority === priority.key && styles.selectedOption
+              styles.priorityOption,
+              formData.priority === priority.key && styles.priorityOptionSelected,
+              { borderColor: priority.color }
             ]}
-            onPress={() => updateFormData('priority', priority.key)}
+            onPress={() => handleInputChange('priority', priority.key)}
           >
-            <View style={[styles.optionIcon, { backgroundColor: priority.color + '20' }]}>
-              <Icon name={priority.icon} size={20} color={priority.color} />
-            </View>
-            <Text style={styles.optionLabel}>{priority.label}</Text>
-            <Text style={styles.optionDescription}>{priority.description}</Text>
+            <Icon 
+              name={priority.icon} 
+              size={20} 
+              color={formData.priority === priority.key ? '#FFFFFF' : priority.color} 
+            />
+            <Text style={[
+              styles.priorityLabel,
+              formData.priority === priority.key && styles.priorityLabelSelected
+            ]}>
+              {priority.label}
+            </Text>
+            <Text style={[
+              styles.priorityDescription,
+              formData.priority === priority.key && styles.priorityDescriptionSelected
+            ]}>
+              {priority.description}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -186,21 +216,33 @@ const FeedbackForm = ({
   const renderCategorySelector = () => (
     <View style={styles.sectionContainer}>
       <Text style={styles.sectionTitle}>Category</Text>
-      <View style={styles.optionsGrid}>
-        {categories.map((category) => (
+      <View style={styles.categoryGrid}>
+        {categories.map(category => (
           <TouchableOpacity
             key={category.key}
             style={[
-              styles.optionCard,
-              formData.category === category.key && styles.selectedOption
+              styles.categoryOption,
+              formData.category === category.key && styles.categoryOptionSelected
             ]}
-            onPress={() => updateFormData('category', category.key)}
+            onPress={() => handleInputChange('category', category.key)}
           >
-            <View style={styles.optionIcon}>
-              <Icon name={category.icon} size={20} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.optionLabel}>{category.label}</Text>
-            <Text style={styles.optionDescription}>{category.description}</Text>
+            <Icon 
+              name={category.icon} 
+              size={24} 
+              color={formData.category === category.key ? theme.colors.primary : theme.colors.textSecondary} 
+            />
+            <Text style={[
+              styles.categoryLabel,
+              formData.category === category.key && styles.categoryLabelSelected
+            ]}>
+              {category.label}
+            </Text>
+            <Text style={[
+              styles.categoryDescription,
+              formData.category === category.key && styles.categoryDescriptionSelected
+            ]}>
+              {category.description}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -210,15 +252,23 @@ const FeedbackForm = ({
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <Card style={styles.formCard}>
-        <Text style={styles.formTitle}>
-          {mode === 'create' ? 'Submit Feedback' : 'Reply to Feedback'}
-        </Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>
+            {mode === 'create' ? 'Submit Feedback' : 'Reply to Thread'}
+          </Text>
+          <Text style={styles.subtitle}>
+            {mode === 'create' 
+              ? 'Help us improve by sharing your thoughts and suggestions'
+              : 'Continue the conversation'
+            }
+          </Text>
+        </View>
 
         {mode === 'create' && (
           <Input
             label="Subject"
             value={formData.subject}
-            onChangeText={(value) => updateFormData('subject', value)}
+            onChangeText={(value) => handleInputChange('subject', value)}
             placeholder="Brief description of your feedback"
             error={errors.subject}
             required
@@ -228,23 +278,31 @@ const FeedbackForm = ({
         <Input
           label="Message"
           value={formData.message}
-          onChangeText={(value) => updateFormData('message', value)}
-          placeholder="Please provide detailed information about your feedback"
+          onChangeText={(value) => handleInputChange('message', value)}
+          placeholder="Describe your feedback in detail..."
           multiline
           numberOfLines={6}
           error={errors.message}
           required
+          style={styles.messageInput}
         />
 
-        {mode === 'create' && renderPrioritySelector()}
-        {mode === 'create' && renderCategorySelector()}
+        {mode === 'create' && (
+          <>
+            {renderPrioritySelector()}
+            {renderCategorySelector()}
+          </>
+        )}
 
-        <Button
-          title={mode === 'create' ? 'Submit Feedback' : 'Send Reply'}
-          onPress={handleSubmit}
-          loading={isSubmitting || loading}
-          style={styles.submitButton}
-        />
+        <View style={styles.buttonContainer}>
+          <Button
+            title={mode === 'create' ? 'Submit Feedback' : 'Send Reply'}
+            onPress={handleSubmit}
+            loading={isSubmitting || loading}
+            disabled={isSubmitting || loading}
+            style={styles.submitButton}
+          />
+        </View>
       </Card>
     </ScrollView>
   );
@@ -257,67 +315,116 @@ const styles = StyleSheet.create({
   },
   formCard: {
     margin: 16,
+    padding: 20,
   },
-  formTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text,
+  header: {
     marginBottom: 24,
-    textAlign: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    lineHeight: 22,
+  },
+  messageInput: {
+    height: 120,
+    textAlignVertical: 'top',
   },
   sectionContainer: {
-    marginBottom: 24,
+    marginVertical: 20,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: 16,
+    color: theme.colors.textPrimary,
+    marginBottom: 12,
   },
-  optionsGrid: {
+  priorityGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  optionCard: {
+  priorityOption: {
     width: '48%',
     padding: 16,
+    borderWidth: 2,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.white,
+    alignItems: 'center',
     marginBottom: 12,
-    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
   },
-  selectedOption: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '10',
+  priorityOptionSelected: {
+    backgroundColor: theme.colors.primary,
   },
-  optionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-    backgroundColor: theme.colors.primary + '20',
-  },
-  optionLabel: {
+  priorityLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.colors.text,
-    textAlign: 'center',
+    color: theme.colors.textPrimary,
+    marginTop: 8,
     marginBottom: 4,
   },
-  optionDescription: {
+  priorityLabelSelected: {
+    color: '#FFFFFF',
+  },
+  priorityDescription: {
     fontSize: 12,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 16,
+  },
+  priorityDescriptionSelected: {
+    color: '#FFFFFF',
+    opacity: 0.9,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  categoryOption: {
+    width: '48%',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  categoryOptionSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: `${theme.colors.primary}10`,
+  },
+  categoryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginTop: 8,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  categoryLabelSelected: {
+    color: theme.colors.primary,
+  },
+  categoryDescription: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+  },
+  categoryDescriptionSelected: {
+    color: theme.colors.primary,
+    opacity: 0.8,
+  },
+  buttonContainer: {
+    marginTop: 32,
   },
   submitButton: {
-    marginTop: 16,
+    height: 48,
   },
 });
 
-export default FeedbackForm;
+export default FeedbackForm;  

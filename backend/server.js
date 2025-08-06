@@ -207,74 +207,48 @@ app.post('/api/feedback',
   feedbackValidation,
   feedbackController.createFeedback
 );
-app.get('/api/feedback/:threadId', 
+app.get('/api/feedback/:id', 
   authenticateToken, 
-  feedbackController.getFeedbackThread
+  idValidation,
+  feedbackController.getFeedback
 );
-app.post('/api/feedback/:threadId/reply', 
+app.put('/api/feedback/:id', 
   authenticateToken, 
-  feedbackController.replyToFeedback
+  idValidation,
+  feedbackController.updateFeedback
+);
+app.delete('/api/feedback/:id', 
+  authenticateToken, 
+  idValidation,
+  feedbackController.deleteFeedback
 );
 
-// File upload endpoint
-app.post('/api/upload', 
+// Upload routes
+app.post('/api/uploads/single', 
   authenticateToken,
-  upload.array('files', 5),
+  upload.single('file'),
   handleUploadError,
-  async (req, res) => {
-    try {
-      if (!req.files || req.files.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'No files uploaded'
-        });
+  (req, res) => {
+    res.json({
+      success: true,
+      message: 'File uploaded successfully',
+      data: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        path: req.file.path,
+        size: req.file.size
       }
-
-      const uploadedFiles = req.files.map(file => ({
-        filename: file.filename,
-        originalName: file.originalname,
-        size: file.size,
-        mimetype: file.mimetype,
-        path: file.path.replace(/\\/g, '/'),
-        url: `/uploads/${req.body.category || 'general'}/${file.filename}`
-      }));
-
-      // Notify relevant users about file upload
-      const io = req.app.get('io');
-      io.emit('fileUploaded', {
-        files: uploadedFiles,
-        uploadedBy: req.user.id,
-        timestamp: new Date()
-      });
-
-      res.json({
-        success: true,
-        message: 'Files uploaded successfully',
-        data: uploadedFiles
-      });
-
-    } catch (error) {
-      console.error('Upload error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Upload failed',
-        error: error.message
-      });
-    }
+    });
   }
 );
 
-// Import and use route modules with error handling
+// Try to load modular routes (graceful fallback if modules don't exist)
 try {
   // Admin route modules
-  const adminDashboardRoutes = require('./routes/admin/dashboard');
-  const adminFeedbackRoutes = require('./routes/admin/feedback');
-  const adminUsersRoutes = require('./routes/admin/users');
+  const adminUserRoutes = require('./routes/admin/users');
   const adminAnalyticsRoutes = require('./routes/admin/analytics');
   
-  app.use('/api/admin/dashboard', adminDashboardRoutes);
-  app.use('/api/admin/feedback', adminFeedbackRoutes);
-  app.use('/api/admin/users', adminUsersRoutes);
+  app.use('/api/admin/users', adminUserRoutes);
   app.use('/api/admin/analytics', adminAnalyticsRoutes);
 
   // Client route modules
@@ -351,83 +325,145 @@ io.on('connection', (socket) => {
   // Handle joining specific threads/rooms
   socket.on('joinThread', (threadId) => {
     socket.join(`thread:${threadId}`);
+    console.log(`User ${socket.userId} joined thread ${threadId}`);
   });
 
   socket.on('leaveThread', (threadId) => {
     socket.leave(`thread:${threadId}`);
+    console.log(`User ${socket.userId} left thread ${threadId}`);
   });
 
-  // Handle real-time notifications
-  socket.on('markNotificationRead', (notificationId) => {
-    // This would typically update the database
-    socket.emit('notificationMarkedRead', { notificationId });
+  // Handle real-time order updates
+  socket.on('orderUpdate', (data) => {
+    // Broadcast to relevant users (admin, sales staff, client)
+    io.to(`role:admin`).emit('orderUpdate', data);
+    io.to(`role:sales_purchase`).emit('orderUpdate', data);
+    io.to(`user:${data.clientId}`).emit('orderUpdate', data);
   });
 
   // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.userId}`);
+  socket.on('disconnect', (reason) => {
+    console.log(`User disconnected: ${socket.userId} (${reason})`);
     connectedUsers.delete(socket.userId);
     
-    // Notify other users about disconnection
-    socket.broadcast.emit('userDisconnected', {
+    // Broadcast user offline status
+    socket.broadcast.emit('userStatusUpdate', {
       userId: socket.userId,
+      status: 'offline',
       timestamp: new Date()
     });
   });
 
-  // Send initial data
-  socket.emit('connected', {
-    userId: socket.userId,
-    role: socket.userRole,
-    onlineUsers: Array.from(connectedUsers.keys()),
-    timestamp: new Date()
+  // Error handling
+  socket.on('error', (error) => {
+    console.error(`Socket error for user ${socket.userId}:`, error);
   });
 });
 
-// Helper functions for real-time notifications
-const sendNotificationToUser = (userId, notification) => {
-  io.to(`user:${userId}`).emit('notification', notification);
-};
+// API endpoint to get connected users (admin only)
+app.get('/api/system/connected-users', 
+  authenticateToken, 
+  authorizeRole(['admin']), 
+  (req, res) => {
+    const users = Array.from(connectedUsers.entries()).map(([userId, data]) => ({
+      userId,
+      ...data
+    }));
+    
+    res.json({
+      success: true,
+      data: {
+        connectedUsers: users,
+        totalConnections: users.length
+      }
+    });
+  }
+);
 
-const sendNotificationToRole = (role, notification) => {
-  io.to(`role:${role}`).emit('notification', notification);
-};
+// API endpoint to broadcast notifications (admin only)
+app.post('/api/system/broadcast', 
+  authenticateToken, 
+  authorizeRole(['admin']), 
+  (req, res) => {
+    const { message, type = 'info', targetRole, targetUser } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message is required'
+      });
+    }
+    
+    const notification = {
+      type,
+      title: 'System Notification',
+      message,
+      timestamp: new Date()
+    };
+    
+    if (targetUser) {
+      // Send to specific user
+      io.to(`user:${targetUser}`).emit('notification', notification);
+    } else if (targetRole) {
+      // Send to all users of a specific role
+      io.to(`role:${targetRole}`).emit('notification', notification);
+    } else {
+      // Broadcast to all connected users
+      io.emit('notification', notification);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Notification broadcasted successfully'
+    });
+  }
+);
 
-const sendToThread = (threadId, event, data) => {
-  io.to(`thread:${threadId}`).emit(event, data);
-};
-
-// Make real-time functions available globally
-global.socketHelpers = {
-  sendNotificationToUser,
-  sendNotificationToRole,
-  sendToThread,
-  getConnectedUsers: () => Array.from(connectedUsers.entries()),
-  isUserOnline: (userId) => connectedUsers.has(userId)
-};
-
-// 404 handler
+// Error handling middleware (must be last)
 app.use(notFound);
-
-// Error handling middleware
 app.use(errorHandler);
 
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+});
+
 // Start server
-const startServer = async () => {
+async function startServer() {
   try {
     // Connect to database
     await connectDB();
     
+    // Start server
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🏥 Health check: http://localhost:${PORT}/health`);
-      console.log(`⚡ Socket.IO enabled for real-time features`);
+      console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔌 Socket.IO enabled for real-time features`);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+        console.log(`🔍 Health check: http://localhost:${PORT}/health`);
+      }
     });
+    
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
   }
-};
+}
 
 startServer();
+
+module.exports = { app, server, io };
