@@ -5,14 +5,14 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 
-// Context Providers
+// Context Providers - FIXED PATHS
 import { AuthProvider } from './src/context/AuthContext';
-import { FeedbackProvider } from './src/context/FeedbackContext';
+import { FeedbackProvider } from './src/components/context/FeedbackContext';
 
-// Screens
-import LoginScreen from './src/screens/LoginScreen';
-import SignupScreen from './src/screens/SignupScreen';
-import ClientScreen from './src/screens/ClientScreen';
+// Screens - CORRECTED PATHS
+import LoginScreen from './src/screens/Loginscreen';
+import SignupScreen from './src/screens/Signupscreen';
+import ClientScreen from './src/screens/enhanced/ClientScreen';
 import AdminScreen from './src/screens/enhanced/AdminScreen';
 import MarketingEmployeeScreen from './src/screens/MarketingEmployeeScreen';
 import SalePurchaseEmployeeScreen from './src/screens/SalePurchaseEmployeeScreen';

@@ -14,7 +14,7 @@ import Button from '../common/Button';
 import Input from '../common/Input';
 import Card from '../common/Card';
 import { theme } from '../../styles/theme';
-import { useFeedback } from '../../context/FeedbackContext';
+import { useFeedback } from '../context/FeedbackContext'; // FIXED PATH
 import { validateRequired } from '../../utils/validation';
 
 const FeedbackForm = ({ 
@@ -110,16 +110,10 @@ const FeedbackForm = ({
 
     if (!validateRequired(formData.subject)) {
       newErrors.subject = 'Subject is required';
-    } else if (formData.subject.length < 5) {
-      newErrors.subject = 'Subject must be at least 5 characters';
     }
 
     if (!validateRequired(formData.message)) {
       newErrors.message = 'Message is required';
-    } else if (formData.message.length < 10) {
-      newErrors.message = 'Message must be at least 10 characters';
-    } else if (formData.message.length > 2000) {
-      newErrors.message = 'Message must be less than 2000 characters';
     }
 
     setErrors(newErrors);
@@ -127,35 +121,17 @@ const FeedbackForm = ({
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) {
-      Alert.alert('Validation Error', 'Please fix the errors and try again');
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsSubmitting(true);
     try {
-      const feedbackData = {
-        ...formData,
-        attachments: formData.attachments.map(att => att.uri || att.id),
-      };
-
-      let result;
-      if (mode === 'create') {
-        result = await createThread(feedbackData);
-      } else {
-        result = await sendMessage(initialData.threadId, feedbackData.message);
-      }
-
-      if (result.success) {
-        Alert.alert(
-          'Success', 
-          mode === 'create' 
-            ? 'Your feedback has been submitted successfully. We will respond shortly.'
-            : 'Your message has been sent successfully.',
-          [{ text: 'OK', onPress: () => onSubmit && onSubmit(result.data) }]
-        );
+      const result = mode === 'create' 
+        ? await createThread(formData)
+        : await onSubmit(formData);
         
-        // Reset form if creating new feedback
+      if (result.success) {
+        Alert.alert('Success', 'Feedback submitted successfully');
+        // Reset form if creating new thread
         if (mode === 'create') {
           setFormData({
             subject: '',
@@ -169,196 +145,106 @@ const FeedbackForm = ({
         Alert.alert('Error', result.error || 'Failed to submit feedback');
       }
     } catch (error) {
-      console.error('Submit feedback error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert('Error', 'Failed to submit feedback');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleAttachment = () => {
-    // This would integrate with image/document picker
-    Alert.alert('Attachments', 'Attachment feature coming soon!');
-  };
-
-  const removeAttachment = (index) => {
-    const newAttachments = formData.attachments.filter((_, i) => i !== index);
-    setFormData({ ...formData, attachments: newAttachments });
+  const updateFormData = (key, value) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+    // Clear error when user starts typing
+    if (errors[key]) {
+      setErrors(prev => ({ ...prev, [key]: null }));
+    }
   };
 
   const renderPrioritySelector = () => (
-    <View style={styles.selectorContainer}>
-      <Text style={styles.selectorLabel}>Priority *</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.priorityRow}>
-          {priorities.map((priority) => (
-            <TouchableOpacity
-              key={priority.key}
-              style={[
-                styles.priorityCard,
-                formData.priority === priority.key && styles.priorityCardSelected,
-              ]}
-              onPress={() => setFormData({ ...formData, priority: priority.key })}
-            >
-              <View style={[
-                styles.priorityIcon,
-                { backgroundColor: priority.color }
-              ]}>
-                <Icon
-                  name={priority.icon}
-                  size={16}
-                  color="#FFFFFF"
-                />
-              </View>
-              <Text style={[
-                styles.priorityLabel,
-                formData.priority === priority.key && styles.priorityLabelSelected,
-              ]}>
-                {priority.label}
-              </Text>
-              <Text style={styles.priorityDescription}>
-                {priority.description}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-    </View>
-  );
-
-  const renderCategorySelector = () => (
-    <View style={styles.selectorContainer}>
-      <Text style={styles.selectorLabel}>Category *</Text>
-      <View style={styles.categoryGrid}>
-        {categories.map((category) => (
+    <View style={styles.sectionContainer}>
+      <Text style={styles.sectionTitle}>Priority Level</Text>
+      <View style={styles.optionsGrid}>
+        {priorities.map((priority) => (
           <TouchableOpacity
-            key={category.key}
+            key={priority.key}
             style={[
-              styles.categoryCard,
-              formData.category === category.key && styles.categoryCardSelected,
+              styles.optionCard,
+              formData.priority === priority.key && styles.selectedOption
             ]}
-            onPress={() => setFormData({ ...formData, category: category.key })}
+            onPress={() => updateFormData('priority', priority.key)}
           >
-            <Icon
-              name={category.icon}
-              size={24}
-              color={formData.category === category.key ? theme.colors.primary : '#64748B'}
-            />
-            <Text style={[
-              styles.categoryLabel,
-              formData.category === category.key && styles.categoryLabelSelected,
-            ]}>
-              {category.label}
-            </Text>
-            <Text style={styles.categoryDescription}>
-              {category.description}
-            </Text>
+            <View style={[styles.optionIcon, { backgroundColor: priority.color + '20' }]}>
+              <Icon name={priority.icon} size={20} color={priority.color} />
+            </View>
+            <Text style={styles.optionLabel}>{priority.label}</Text>
+            <Text style={styles.optionDescription}>{priority.description}</Text>
           </TouchableOpacity>
         ))}
       </View>
     </View>
   );
 
-  const renderAttachments = () => (
-    <View style={styles.attachmentContainer}>
-      <View style={styles.attachmentHeader}>
-        <Text style={styles.selectorLabel}>Attachments (Optional)</Text>
-        <TouchableOpacity
-          style={styles.addAttachmentButton}
-          onPress={handleAttachment}
-        >
-          <Icon name="paperclip" size={16} color={theme.colors.primary} />
-          <Text style={styles.addAttachmentText}>Add File</Text>
-        </TouchableOpacity>
-      </View>
-      
-      {formData.attachments.length > 0 && (
-        <View style={styles.attachmentList}>
-          {formData.attachments.map((attachment, index) => (
-            <View key={index} style={styles.attachmentItem}>
-              <Icon name="file" size={16} color="#64748B" />
-              <Text style={styles.attachmentName}>{attachment.name}</Text>
-              <TouchableOpacity
-                onPress={() => removeAttachment(index)}
-                style={styles.removeAttachment}
-              >
-                <Icon name="x" size={14} color="#EF4444" />
-              </TouchableOpacity>
+  const renderCategorySelector = () => (
+    <View style={styles.sectionContainer}>
+      <Text style={styles.sectionTitle}>Category</Text>
+      <View style={styles.optionsGrid}>
+        {categories.map((category) => (
+          <TouchableOpacity
+            key={category.key}
+            style={[
+              styles.optionCard,
+              formData.category === category.key && styles.selectedOption
+            ]}
+            onPress={() => updateFormData('category', category.key)}
+          >
+            <View style={styles.optionIcon}>
+              <Icon name={category.icon} size={20} color={theme.colors.primary} />
             </View>
-          ))}
-        </View>
-      )}
+            <Text style={styles.optionLabel}>{category.label}</Text>
+            <Text style={styles.optionDescription}>{category.description}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   );
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <Card style={styles.formCard}>
-        <View style={styles.formHeader}>
-          <Icon name="message-circle" size={32} color={theme.colors.primary} />
-          <Text style={styles.formTitle}>
-            {mode === 'create' ? 'Send Feedback' : 'Reply to Thread'}
-          </Text>
-          <Text style={styles.formSubtitle}>
-            {mode === 'create' 
-              ? 'We value your feedback and will respond as soon as possible.'
-              : 'Continue the conversation with our support team.'
-            }
-          </Text>
-        </View>
-        
+        <Text style={styles.formTitle}>
+          {mode === 'create' ? 'Submit Feedback' : 'Reply to Feedback'}
+        </Text>
+
         {mode === 'create' && (
           <Input
             label="Subject"
             value={formData.subject}
-            onChangeText={(text) => setFormData({ ...formData, subject: text })}
+            onChangeText={(value) => updateFormData('subject', value)}
             placeholder="Brief description of your feedback"
             error={errors.subject}
             required
-            maxLength={100}
           />
         )}
 
-        {mode === 'create' && renderCategorySelector()}
-        {mode === 'create' && renderPrioritySelector()}
-
         <Input
-          label={mode === 'create' ? 'Message' : 'Your Reply'}
+          label="Message"
           value={formData.message}
-          onChangeText={(text) => setFormData({ ...formData, message: text })}
-          placeholder={mode === 'create' 
-            ? 'Please provide detailed information about your feedback...'
-            : 'Type your reply here...'
-          }
+          onChangeText={(value) => updateFormData('message', value)}
+          placeholder="Please provide detailed information about your feedback"
           multiline
           numberOfLines={6}
           error={errors.message}
           required
-          maxLength={2000}
         />
 
-        <View style={styles.characterCount}>
-          <Text style={styles.characterCountText}>
-            {formData.message.length}/2000 characters
-          </Text>
-        </View>
+        {mode === 'create' && renderPrioritySelector()}
+        {mode === 'create' && renderCategorySelector()}
 
-        {mode === 'create' && renderAttachments()}
-
-        <View style={styles.submitContainer}>
-          <Button
-            title={mode === 'create' ? 'Send Feedback' : 'Send Reply'}
-            onPress={handleSubmit}
-            loading={isSubmitting || loading}
-            disabled={isSubmitting || loading}
-            icon={mode === 'create' ? 'send' : 'message-circle'}
-            style={styles.submitButton}
-          />
-          
-          <Text style={styles.responseTime}>
-            💬 Average response time: 2-4 hours
-          </Text>
-        </View>
+        <Button
+          title={mode === 'create' ? 'Submit Feedback' : 'Send Reply'}
+          onPress={handleSubmit}
+          loading={isSubmitting || loading}
+          style={styles.submitButton}
+        />
       </Card>
     </ScrollView>
   );
@@ -367,177 +253,71 @@ const FeedbackForm = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   formCard: {
     margin: 16,
   },
-  formHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
   formTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginTop: 12,
-    marginBottom: 8,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+    marginBottom: 24,
     textAlign: 'center',
   },
-  formSubtitle: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  selectorContainer: {
+  sectionContainer: {
     marginBottom: 24,
   },
-  selectorLabel: {
-    fontSize: 16,
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 12,
+    color: theme.colors.text,
+    marginBottom: 16,
   },
-  priorityRow: {
+  optionsGrid: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
-  priorityCard: {
-    alignItems: 'center',
+  optionCard: {
+    width: '48%',
     padding: 16,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-    minWidth: 120,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.white,
+    marginBottom: 12,
+    alignItems: 'center',
   },
-  priorityCardSelected: {
+  selectedOption: {
     borderColor: theme.colors.primary,
-    backgroundColor: '#F0F4FF',
+    backgroundColor: theme.colors.primary + '10',
   },
-  priorityIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  optionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
+    backgroundColor: theme.colors.primary + '20',
   },
-  priorityLabel: {
+  optionLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#64748B',
+    color: theme.colors.text,
+    textAlign: 'center',
     marginBottom: 4,
   },
-  priorityLabelSelected: {
-    color: theme.colors.primary,
-  },
-  priorityDescription: {
+  optionDescription: {
     fontSize: 12,
-    color: '#94A3B8',
-    textAlign: 'center',
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  categoryCard: {
-    width: '47%',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  categoryCardSelected: {
-    borderColor: theme.colors.primary,
-    backgroundColor: '#F0F4FF',
-  },
-  categoryLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 8,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  categoryLabelSelected: {
-    color: theme.colors.primary,
-  },
-  categoryDescription: {
-    fontSize: 12,
-    color: '#94A3B8',
-    textAlign: 'center',
-  },
-  attachmentContainer: {
-    marginBottom: 24,
-  },
-  attachmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  addAttachmentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    backgroundColor: '#F0F4FF',
-    gap: 6,
-  },
-  addAttachmentText: {
-    fontSize: 14,
-    color: theme.colors.primary,
-    fontWeight: '500',
-  },
-  attachmentList: {
-    gap: 8,
-  },
-  attachmentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  attachmentName: {
-    flex: 1,
-    fontSize: 14,
-    color: theme.colors.textPrimary,
-    marginLeft: 8,
-  },
-  removeAttachment: {
-    padding: 4,
-  },
-  characterCount: {
-    alignItems: 'flex-end',
-    marginBottom: 24,
-  },
-  characterCountText: {
-    fontSize: 12,
-    color: '#94A3B8',
-  },
-  submitContainer: {
-    alignItems: 'center',
-  },
-  submitButton: {
-    width: '100%',
-    marginBottom: 16,
-  },
-  responseTime: {
-    fontSize: 14,
     color: theme.colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 16,
+  },
+  submitButton: {
+    marginTop: 16,
   },
 });
+
 export default FeedbackForm;

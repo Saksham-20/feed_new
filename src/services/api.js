@@ -1,15 +1,15 @@
 // src/services/api.js
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { STORAGE_KEYS, API_ENDPOINTS } from '../utils/constants';
+import { STORAGE_KEYS } from '../utils/constants';
 
-// Base API configuration
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3000' 
-  : 'https://your-production-api.com';
+// Replace this with your actual API URL
+const BASE_URL = __DEV__ 
+  ? 'http://localhost:3000' // Development URL
+  : 'https://your-production-api.com'; // Production URL
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -19,9 +19,13 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    try {
+      const token = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('Error getting auth token:', error);
     }
     return config;
   },
@@ -32,7 +36,9 @@ api.interceptors.request.use(
 
 // Response interceptor to handle token refresh
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 
@@ -43,7 +49,7 @@ api.interceptors.response.use(
         const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
         
         if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
+          const response = await axios.post(`${BASE_URL}/api/auth/refresh`, {
             refreshToken,
           });
 
@@ -60,14 +66,15 @@ api.interceptors.response.use(
           }
         }
       } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
-        
-        // Clear stored tokens and redirect to login
-        await Promise.all([
-          AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN),
-          AsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN),
-          AsyncStorage.removeItem(STORAGE_KEYS.USER),
+        // Refresh failed, redirect to login
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.ACCESS_TOKEN,
+          STORAGE_KEYS.REFRESH_TOKEN,
+          STORAGE_KEYS.USER,
         ]);
+        
+        console.error('Token refresh failed:', refreshError);
+        // You can emit an event here to redirect to login screen
       }
     }
 

@@ -1,178 +1,202 @@
 // src/utils/helpers.js
-export const formatCurrency = (amount, currency = 'INR') => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(amount);
-};
 
-export const formatDate = (date, format = 'short') => {
-  const dateObj = new Date(date);
-  
-  const options = {
-    short: { day: '2-digit', month: 'short', year: 'numeric' },
-    long: { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    },
-    time: { 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      hour12: true 
-    },
-    datetime: { 
-      day: '2-digit', 
-      month: 'short', 
+export const formatDate = (dateString, options = {}) => {
+  try {
+    const date = new Date(dateString);
+    const defaultOptions = {
       year: 'numeric',
-      hour: '2-digit', 
-      minute: '2-digit', 
-      hour12: true 
-    },
-  };
-
-  return dateObj.toLocaleDateString('en-IN', options[format] || options.short);
+      month: 'short',
+      day: 'numeric',
+      ...options,
+    };
+    return date.toLocaleDateString('en-IN', defaultOptions);
+  } catch (error) {
+    return 'Invalid Date';
+  }
 };
 
-export const formatRelativeTime = (date) => {
-  const now = new Date();
-  const dateObj = new Date(date);
-  const diffInSeconds = Math.floor((now - dateObj) / 1000);
+export const formatRelativeTime = (dateString) => {
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now - date;
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
-  if (diffInSeconds < 60) {
-    return 'Just now';
+    if (diffInMinutes < 1) {
+      return 'Just now';
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes}m ago`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours}h ago`;
+    } else if (diffInDays < 7) {
+      return `${diffInDays}d ago`;
+    } else {
+      return formatDate(dateString, { month: 'short', day: 'numeric' });
+    }
+  } catch (error) {
+    return 'Unknown';
   }
-
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) {
-    return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
-  }
-
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) {
-    return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-  }
-
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) {
-    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
-  }
-
-  return formatDate(date);
 };
 
-export const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes';
-
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+export const formatTime = (dateString, options = {}) => {
+  try {
+    const date = new Date(dateString);
+    const defaultOptions = {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      ...options,
+    };
+    return date.toLocaleTimeString('en-IN', defaultOptions);
+  } catch (error) {
+    return 'Invalid Time';
+  }
 };
 
-export const truncateText = (text, maxLength = 100) => {
-  if (!text || text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
+export const formatCurrency = (amount, currency = 'INR') => {
+  try {
+    const formatter = new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: currency,
+    });
+    return formatter.format(amount);
+  } catch (error) {
+    return `${currency} ${amount}`;
+  }
+};
+
+export const formatNumber = (number, options = {}) => {
+  try {
+    const formatter = new Intl.NumberFormat('en-IN', options);
+    return formatter.format(number);
+  } catch (error) {
+    return number.toString();
+  }
 };
 
 export const capitalizeFirst = (str) => {
   if (!str) return '';
-  return str.charAt(0).toUpperCase() + str.slice(1);
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 };
 
 export const capitalizeWords = (str) => {
   if (!str) return '';
-  return str.split(' ').map(capitalizeFirst).join(' ');
+  return str
+    .split(' ')
+    .map(word => capitalizeFirst(word))
+    .join(' ');
+};
+
+export const truncateText = (text, maxLength, suffix = '...') => {
+  if (!text || text.length <= maxLength) return text;
+  return text.substring(0, maxLength - suffix.length) + suffix;
 };
 
 export const generateId = () => {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return Math.random().toString(36).substr(2, 9);
 };
 
-export const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
+export const debounce = (func, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(null, args), delay);
   };
 };
 
 export const throttle = (func, limit) => {
   let inThrottle;
-  return function() {
-    const args = arguments;
-    const context = this;
+  return (...args) => {
     if (!inThrottle) {
-      func.apply(context, args);
+      func.apply(null, args);
       inThrottle = true;
       setTimeout(() => inThrottle = false, limit);
     }
   };
 };
 
-export const deepMerge = (target, source) => {
-  const output = Object.assign({}, target);
-  if (isObject(target) && isObject(source)) {
-    Object.keys(source).forEach(key => {
-      if (isObject(source[key])) {
-        if (!(key in target))
-          Object.assign(output, { [key]: source[key] });
-        else
-          output[key] = deepMerge(target[key], source[key]);
-      } else {
-        Object.assign(output, { [key]: source[key] });
-      }
-    });
-  }
-  return output;
+export const deepClone = (obj) => {
+  return JSON.parse(JSON.stringify(obj));
 };
 
-const isObject = (item) => {
-  return item && typeof item === 'object' && !Array.isArray(item);
+export const isEmptyObject = (obj) => {
+  return Object.keys(obj).length === 0;
 };
 
 export const groupBy = (array, key) => {
-  return array.reduce((result, item) => {
-    const group = item[key];
-    if (!result[group]) {
-      result[group] = [];
+  return array.reduce((result, currentValue) => {
+    const groupKey = currentValue[key];
+    if (!result[groupKey]) {
+      result[groupKey] = [];
     }
-    result[group].push(item);
+    result[groupKey].push(currentValue);
     return result;
   }, {});
 };
 
 export const sortBy = (array, key, direction = 'asc') => {
   return [...array].sort((a, b) => {
-    const aVal = a[key];
-    const bVal = b[key];
+    const aValue = a[key];
+    const bValue = b[key];
     
-    if (direction === 'desc') {
-      return bVal > aVal ? 1 : -1;
+    if (direction === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
     }
-    return aVal > bVal ? 1 : -1;
   });
 };
 
 export const filterBy = (array, filters) => {
   return array.filter(item => {
-    return Object.keys(filters).every(key => {
-      const filterValue = filters[key];
-      const itemValue = item[key];
-      
-      if (!filterValue) return true;
-      if (typeof filterValue === 'string') {
-        return itemValue.toLowerCase().includes(filterValue.toLowerCase());
+    return Object.entries(filters).every(([key, value]) => {
+      if (value === null || value === undefined || value === '') {
+        return true;
       }
-      return itemValue === filterValue;
+      
+      if (Array.isArray(value)) {
+        return value.includes(item[key]);
+      }
+      
+      return item[key] === value;
     });
   });
+};
+
+export const getFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+export const getFileExtension = (filename) => {
+  return filename.slice((filename.lastIndexOf('.') - 1 >>> 0) + 2);
+};
+
+export const isImage = (filename) => {
+  const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+  const extension = getFileExtension(filename).toLowerCase();
+  return imageExtensions.includes(extension);
+};
+
+export const isDocument = (filename) => {
+  const docExtensions = ['pdf', 'doc', 'docx', 'txt', 'rtf'];
+  const extension = getFileExtension(filename).toLowerCase();
+  return docExtensions.includes(extension);
+};
+
+export const getInitials = (name) => {
+  if (!name) return '';
+  return name
+    .split(' ')
+    .map(word => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
 };

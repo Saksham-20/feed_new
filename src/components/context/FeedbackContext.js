@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer } from 'react';
-import api from '../services/api';
-import { useAuth } from './AuthContext';
+import api from '../../services/api'; // FIXED PATH
+import { useAuth } from '../../context/AuthContext'; // FIXED PATH
 
 const FeedbackContext = createContext({});
 

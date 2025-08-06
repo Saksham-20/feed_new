@@ -14,7 +14,7 @@ import Card from '../common/Card';
 import Button from '../common/Button';
 import { theme } from '../../styles/theme';
 import { formatDate, formatRelativeTime } from '../../utils/helpers';
-import { useFeedback } from '../../context/FeedbackContext';
+import { useFeedback } from '../context/FeedbackContext'; // FIXED PATH
 
 const FeedbackThread = ({ threadId, onClose }) => {
   const { messages, loading, sendMessage, fetchMessages } = useFeedback();
@@ -75,39 +75,41 @@ const FeedbackThread = ({ threadId, onClose }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Support Chat</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <Icon name="x" size={24} color={theme.colors.textPrimary} />
+          <Icon name="arrow-left" size={24} color={theme.colors.text} />
         </TouchableOpacity>
+        <Text style={styles.title}>Feedback Thread</Text>
       </View>
 
       <FlatList
         data={threadMessages}
         renderItem={renderMessage}
-        keyExtractor={(item) => item.message_id.toString()}
+        keyExtractor={(item) => item.id.toString()}
         style={styles.messagesList}
-        contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
       />
 
       <View style={styles.inputContainer}>
         <TextInput
-          style={styles.textInput}
           value={newMessage}
           onChangeText={setNewMessage}
           placeholder="Type your message..."
+          style={styles.textInput}
           multiline
-          maxLength={500}
+          maxLength={1000}
         />
         <TouchableOpacity
-          style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
           onPress={handleSendMessage}
           disabled={!newMessage.trim() || sending}
+          style={[
+            styles.sendButton,
+            (!newMessage.trim() || sending) && styles.sendButtonDisabled
+          ]}
         >
-          <Icon
-            name="send"
-            size={20}
-            color={newMessage.trim() ? theme.colors.primary : theme.colors.textTertiary}
+          <Icon 
+            name={sending ? "clock" : "send"} 
+            size={20} 
+            color={(!newMessage.trim() || sending) ? theme.colors.textSecondary : theme.colors.primary} 
           />
         </TouchableOpacity>
       </View>
@@ -118,33 +120,30 @@ const FeedbackThread = ({ threadId, onClose }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
+    borderBottomColor: theme.colors.border,
   },
   closeButton: {
-    padding: 8,
+    marginRight: 12,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text,
   },
   messagesList: {
     flex: 1,
-  },
-  messagesContent: {
-    padding: 16,
+    paddingHorizontal: 16,
   },
   messageContainer: {
-    marginBottom: 16,
+    marginVertical: 4,
   },
   userMessage: {
     alignItems: 'flex-end',
@@ -154,66 +153,60 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: '80%',
-    padding: 12,
-    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 18,
   },
   userBubble: {
     backgroundColor: theme.colors.primary,
-    borderBottomRightRadius: 4,
   },
   adminBubble: {
-    backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    backgroundColor: theme.colors.card,
   },
   messageText: {
     fontSize: 16,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   userText: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
   adminText: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.text,
   },
   messageTime: {
     fontSize: 12,
     marginTop: 4,
   },
   userTime: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: theme.colors.white + '80',
   },
   adminTime: {
-    color: theme.colors.textTertiary,
+    color: theme.colors.textSecondary,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: theme.colors.border,
+    backgroundColor: theme.colors.white,
   },
   textInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     fontSize: 16,
     maxHeight: 100,
     marginRight: 12,
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F1F5F9',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },

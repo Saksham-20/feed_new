@@ -87,7 +87,7 @@ const OfficeEmployeeScreen = ({ navigation }) => {
       setLoading(true);
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.get(
-        'http://192.168.29.161:3000/api/employees/office/dashboard',
+        'http://192.168.1.22:3000/api/employees/office/dashboard',
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -113,7 +113,7 @@ const OfficeEmployeeScreen = ({ navigation }) => {
       setLoading(true);
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.get(
-        'http://192.168.29.161:3000/api/employees/office/tasks',
+        'http://192.168.1.22:3000/api/employees/office/tasks',
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -219,7 +219,7 @@ const OfficeEmployeeScreen = ({ navigation }) => {
 
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.post(
-        'http://192.168.29.161:3000/api/employees/office/tasks',
+        'http://192.168.1.22:3000/api/employees/office/tasks',
         taskForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );

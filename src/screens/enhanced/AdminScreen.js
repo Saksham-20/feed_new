@@ -60,7 +60,7 @@ const AdminScreen = ({ navigation }) => {
       setLoading(true);
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.get(
-        'http://192.168.29.161:3000/api/admin/dashboard/overview',
+        'http://192.168.1.22:3000/api/admin/dashboard/overview',
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -80,11 +80,11 @@ const AdminScreen = ({ navigation }) => {
       setLoading(true);
       const token = await AsyncStorage.getItem('accessToken');
       const [usersRes, approvalsRes] = await Promise.all([
-        axios.get('http://192.168.29.161:3000/api/admin/users', {
+        axios.get('http://192.168.1.22:3000/api/admin/users', {
           headers: { Authorization: `Bearer ${token}` },
           params: { type: userFilter !== 'all' ? userFilter : undefined }
         }),
-        axios.get('http://192.168.29.161:3000/api/admin/pending-approvals', {
+        axios.get('http://192.168.1.22:3000/api/admin/pending-approvals', {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -104,7 +104,7 @@ const AdminScreen = ({ navigation }) => {
       setLoading(true);
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.get(
-        'http://192.168.29.161:3000/api/admin/feedback',
+        'http://192.168.1.22:3000/api/admin/feedback',
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -121,8 +121,8 @@ const AdminScreen = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
       const endpoint = action === 'approve' 
-        ? 'http://192.168.29.161:3000/api/admin/approve-user'
-        : 'http://192.168.29.161:3000/api/admin/reject-user';
+        ? 'http://192.168.1.22:3000/api/admin/approve-user'
+        : 'http://192.168.1.22:3000/api/admin/reject-user';
 
       const response = await axios.post(
         endpoint,

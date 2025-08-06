@@ -68,13 +68,13 @@ const ClientScreen = ({ navigation }) => {
       
       // Fetch orders, bills, and feedback in parallel
       const [ordersRes, billsRes, feedbackRes] = await Promise.all([
-        axios.get('http://192.168.29.161:3000/api/client/orders', {
+        axios.get('http://192.168.1.22:3000/api/client/orders', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('http://192.168.29.161:3000/api/client/bills', {
+        axios.get('http://192.168.1.22:3000/api/client/bills', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('http://192.168.29.161:3000/api/client/feedback', {
+        axios.get('http://192.168.1.22:3000/api/client/feedback', {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -100,7 +100,7 @@ const ClientScreen = ({ navigation }) => {
 
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.post(
-        'http://192.168.29.161:3000/api/client/orders',
+        'http://192.168.1.22:3000/api/client/orders',
         orderForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -134,7 +134,7 @@ const ClientScreen = ({ navigation }) => {
 
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.post(
-        'http://192.168.29.161:3000/api/client/feedback',
+        'http://192.168.1.22:3000/api/client/feedback',
         feedbackForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );

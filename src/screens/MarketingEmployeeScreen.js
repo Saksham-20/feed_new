@@ -95,7 +95,7 @@ const MarketingEmployeeScreen = ({ navigation }) => {
       setLoading(true);
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.get(
-        'http://192.168.29.161:3000/api/employees/marketing/dashboard',
+        'http://192.168.1.22:3000/api/employees/marketing/dashboard',
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -242,7 +242,7 @@ const MarketingEmployeeScreen = ({ navigation }) => {
 
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.post(
-        'http://192.168.29.161:3000/api/employees/marketing/campaigns',
+        'http://192.168.1.22:3000/api/employees/marketing/campaigns',
         campaignForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -277,7 +277,7 @@ const MarketingEmployeeScreen = ({ navigation }) => {
 
       const token = await AsyncStorage.getItem('accessToken');
       const response = await axios.post(
-        'http://192.168.29.161:3000/api/employees/marketing/leads',
+        'http://192.168.1.22:3000/api/employees/marketing/leads',
         leadForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -828,6 +828,11 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     marginBottom: 16,
   },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginTop: 4,
+  },
   performanceBar: {
     alignItems: 'center',
   },
@@ -867,3 +872,283 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  quickActionsCard: {
+    margin: 16,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  quickAction: {
+    alignItems: 'center',
+    width: (width - 64) / 4,
+  },
+  quickActionText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  activityCard: {
+    margin: 16,
+    marginBottom: 32,
+  },
+  activityList: {
+    gap: 12,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  activityTime: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  campaignCard: {
+    margin: 16,
+    marginBottom: 12,
+  },
+  campaignHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  campaignTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+    flex: 1,
+  },
+  campaignDescription: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 12,
+  },
+  campaignMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  campaignMetaText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  campaignFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  campaignDates: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  campaignTerritory: {
+    fontSize: 12,
+    color: '#6366F1',
+    fontWeight: '500',
+  },
+  leadCard: {
+    margin: 16,
+    marginBottom: 12,
+  },
+  leadHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  leadInfo: {
+    flex: 1,
+  },
+  leadName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  leadCompany: {
+    fontSize: 14,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  leadDetails: {
+    marginBottom: 8,
+    gap: 4,
+  },
+  leadDetailText: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  leadNotes: {
+    fontSize: 14,
+    color: '#374151',
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  leadFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  leadDate: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  leadSource: {
+    fontSize: 12,
+    color: '#6366F1',
+    fontWeight: '500',
+  },
+  submissionCard: {
+    margin: 16,
+    marginBottom: 12,
+  },
+  submissionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  submissionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+    flex: 1,
+  },
+  submissionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  submissionDetails: {
+    marginBottom: 8,
+  },
+  submissionCampaign: {
+    fontSize: 14,
+    color: '#6366F1',
+    fontWeight: '500',
+  },
+  submissionDate: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  submissionData: {
+    gap: 4,
+  },
+  submissionDataText: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  editButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#E2E8F0',
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  status_active: {
+    backgroundColor: '#DBEAFE',
+  },
+  status_completed: {
+    backgroundColor: '#D1FAE5',
+  },
+  status_pending: {
+    backgroundColor: '#FEF3C7',
+  },
+  status_converted: {
+    backgroundColor: '#D1FAE5',
+  },
+  status_submitted: {
+    backgroundColor: '#DBEAFE',
+  },
+  status_reviewed: {
+    backgroundColor: '#E0E7FF',
+  },
+  comingSoon: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  comingSoonText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 16,
+  },
+  comingSoonSubtext: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    paddingTop: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  submitButton: {
+    width: '100%',
+  },
+});
+
+export default MarketingEmployeeScreen;
