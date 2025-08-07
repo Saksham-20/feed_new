@@ -1,102 +1,47 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  Platform,
-} from 'react-native';
-import Icon from 'react-native-vector-icons/Feather';
-import { theme } from '../../styles/theme';
+import React, { useContext } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { AuthContext } from '../../context/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
+import { colors } from '../../styles/colors';
 
-const Header = ({
-  title,
-  subtitle,
-  leftIcon,
-  rightIcon,
-  onLeftPress,
-  onRightPress,
-  backgroundColor = theme.colors.white,
-  textColor = theme.colors.gray[800],
-  showShadow = true,
-}) => {
+const Header = ({ navigation, route }) => {
+  const { logout } = useContext(AuthContext);
+
+  const handleLogout = async () => {
+    await logout();
+    navigation.replace('Login');
+  };
+
+  // Safely access the name from route.params and provide a fallback title.
+  const title = route?.params?.name || 'Dashboard';
+
   return (
-    <>
-      <StatusBar
-        barStyle={backgroundColor === theme.colors.white ? 'dark-content' : 'light-content'}
-        backgroundColor={backgroundColor}
-      />
-      <View style={[
-        styles.container,
-        { backgroundColor },
-        showShadow && styles.shadow
-      ]}>
-        <View style={styles.content}>
-          {leftIcon && (
-            <TouchableOpacity
-              onPress={onLeftPress}
-              style={styles.iconButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Icon name={leftIcon} size={24} color={textColor} />
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: textColor }]}>{title}</Text>
-            {subtitle && (
-              <Text style={[styles.subtitle, { color: textColor }]}>{subtitle}</Text>
-            )}
-          </View>
-
-          {rightIcon && (
-            <TouchableOpacity
-              onPress={onRightPress}
-              style={styles.iconButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Icon name={rightIcon} size={24} color={textColor} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    </>
+    <View style={styles.headerContainer}>
+      <Text style={styles.headerTitle}>{title}</Text>
+      <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+        <Ionicons name="log-out-outline" size={24} color={colors.white} />
+      </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight,
-  },
-  shadow: {
-    ...theme.shadows.sm,
-  },
-  content: {
+  headerContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 56,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 15,
+    paddingTop: 40, // Adjust for status bar height
+    paddingBottom: 10,
   },
-  iconButton: {
-    padding: 8,
+  headerTitle: {
+    color: colors.white,
+    fontSize: 20,
+    fontWeight: 'bold',
   },
-  titleContainer: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    opacity: 0.7,
-    textAlign: 'center',
-    marginTop: 2,
+  logoutButton: {
+    padding: 5,
   },
 });
 
