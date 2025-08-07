@@ -20,36 +20,43 @@ import { theme } from '../styles/theme';
 
 const { width, height } = Dimensions.get('window');
 
-const LoginScreen = ({ navigation }) => {
-  const { login } = useContext(AuthContext);
+const LoginScreen = ({ navigation, onLogin }) => {
+  const authContext = useContext(AuthContext);
+  const login = authContext?.login || onLogin;
+  
   const [formData, setFormData] = useState({
-    email: '',
+    phone: '',
     password: '',
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
-    if (!formData.email || !formData.password) {
+    if (!formData.phone || !formData.password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+    // Basic phone number validation
+    const phoneRegex = /^[+]?[\d\s\-\(\)]+$/;
+    const cleanPhone = formData.phone.replace(/[\s\-\(\)]/g, '');
+    
+    if (!phoneRegex.test(formData.phone) || cleanPhone.length < 10) {
+      Alert.alert('Error', 'Please enter a valid phone number');
       return;
     }
 
     setLoading(true);
     try {
-      const result = await login(formData.email, formData.password);
+      const result = await login(formData.phone, formData.password);
       
-      if (result.success) {
+      if (result && result.success) {
         navigateToUserScreen(result.user.role);
+      } else if (result && result.error) {
+        Alert.alert('Login Failed', result.error);
       } else {
-        Alert.alert('Login Failed', result.error || 'Invalid credentials');
+        // Direct login success (when onLogin is used)
+        console.log('Login successful');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -60,6 +67,8 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const navigateToUserScreen = (userRole) => {
+    if (!navigation) return;
+    
     const navigationMap = {
       'client': 'ClientScreen',
       'sales_purchase': 'SalePurchaseEmployeeScreen',
@@ -80,11 +89,19 @@ const LoginScreen = ({ navigation }) => {
     );
   };
 
+  const handleSignupNavigation = () => {
+    if (navigation) {
+      navigation.navigate('Signup');
+    } else {
+      Alert.alert('Navigation', 'Please restart the app to access signup');
+    }
+  };
+
   return (
     <KeyboardAvoidingView 
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -100}
     >
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       
@@ -92,44 +109,40 @@ const LoginScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        bounces={false}
       >
-        {/* Header Section */}
+        {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <View style={styles.logo}>
-              <Icon name="zap" size={40} color="#FFFFFF" />
-            </View>
-            <Text style={styles.appName}>Business Pro</Text>
-            <Text style={styles.tagline}>Professional Business Management</Text>
+            <Text style={styles.logoIcon}>⚡</Text>
+            <Text style={styles.logoText}>Business Pro</Text>
+            <Text style={styles.logoSubtext}>Professional Business Management</Text>
           </View>
         </View>
 
-        {/* Login Form */}
-        <View style={styles.formContainer}>
-          <View style={styles.formHeader}>
-            <Text style={styles.formTitle}>Welcome Back</Text>
-            <Text style={styles.formSubtitle}>Sign in to your account</Text>
+        {/* Content */}
+        <View style={styles.content}>
+          <View style={styles.welcomeContainer}>
+            <Text style={styles.welcomeTitle}>Welcome Back</Text>
+            <Text style={styles.welcomeSubtitle}>Sign in to your account</Text>
           </View>
 
-          <View style={styles.form}>
+          <View style={styles.formContainer}>
             <Input
-              label="Email Address"
-              value={formData.email}
-              onChangeText={(text) => setFormData({ ...formData, email: text.toLowerCase().trim() })}
-              placeholder="Enter your email address"
-              keyboardType="email-address"
+              label="Phone Number"
+              value={formData.phone}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+              placeholder="Enter your phone number"
+              keyboardType="phone-pad"
+              leftIcon="phone"
               autoCapitalize="none"
-              autoComplete="email"
-              leftIcon="mail"
               required
             />
 
             <Input
               label="Password"
               value={formData.password}
-              onChangeText={(text) => setFormData({ ...formData, password: text })}
-              placeholder="Enter your password"
+              onChangeText={(text) => setFormData(prev => ({ ...prev, password: text }))}
+              placeholder="Enter your password (minimum 6 characters)"
               secureTextEntry={!showPassword}
               leftIcon="lock"
               rightIcon={showPassword ? "eye-off" : "eye"}
@@ -156,7 +169,7 @@ const LoginScreen = ({ navigation }) => {
           <View style={styles.signupSection}>
             <Text style={styles.signupText}>Don't have an account?</Text>
             <TouchableOpacity
-              onPress={() => navigation.navigate('SignupScreen')}
+              onPress={handleSignupNavigation}
               disabled={loading}
             >
               <Text style={styles.signupLink}>Create Account</Text>
@@ -183,58 +196,48 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 40,
-    alignItems: 'center',
-    minHeight: height * 0.4,
-    justifyContent: 'center',
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   logoContainer: {
     alignItems: 'center',
   },
-  logo: {
-    width: 80,
-    height: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+  logoIcon: {
+    fontSize: 48,
+    marginBottom: 12,
   },
-  appName: {
-    fontSize: 32,
-    fontWeight: '700',
+  logoText: {
+    fontSize: 28,
+    fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 8,
-    textAlign: 'center',
   },
-  tagline: {
+  logoSubtext: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
-    paddingHorizontal: 20,
   },
-  formContainer: {
+  content: {
     flex: 1,
-    padding: 24,
+    paddingHorizontal: 24,
     paddingTop: 40,
-    backgroundColor: '#FFFFFF',
   },
-  formHeader: {
+  welcomeContainer: {
     marginBottom: 32,
     alignItems: 'center',
   },
-  formTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+  welcomeTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: theme.colors.textPrimary,
     marginBottom: 8,
-    textAlign: 'center',
   },
-  formSubtitle: {
+  welcomeSubtitle: {
     fontSize: 16,
     color: theme.colors.textSecondary,
-    textAlign: 'center',
   },
-  form: {
+  formContainer: {
     marginBottom: 32,
   },
   forgotPassword: {
@@ -245,19 +248,18 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     fontSize: 14,
     color: theme.colors.primary,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   loginButton: {
-    height: 52,
-    backgroundColor: theme.colors.primary,
+    marginTop: 8,
   },
   signupSection: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    paddingVertical: 16,
+    marginTop: 'auto',
+    marginBottom: 20,
   },
   signupText: {
     fontSize: 16,
