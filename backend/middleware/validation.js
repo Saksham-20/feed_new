@@ -18,11 +18,11 @@ const loginValidation = [
 // Order validation
 const orderValidation = [
   body('client_id').optional().isInt({ min: 1 }).withMessage('Valid client ID required'),
-  body('products').isArray({ min: 1 }).withMessage('At least one product is required'),
-  body('products.*.name').notEmpty().trim().withMessage('Product name is required'),
-  body('products.*.quantity').isInt({ min: 1 }).withMessage('Valid quantity required'),
-  body('products.*.unit_price').isFloat({ min: 0 }).withMessage('Valid unit price required'),
-  body('delivery_date').optional().isISO8601().withMessage('Valid delivery date required'),
+  body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
+  body('items.*.description').notEmpty().trim().withMessage('Item description is required'),
+  body('items.*.quantity').isInt({ min: 1 }).withMessage('Valid quantity required'),
+  body('items.*.unit_price').isFloat({ min: 0 }).withMessage('Valid unit price required'),
+  body('due_date').optional().isISO8601().withMessage('Valid due date required'),
   body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes too long')
 ];
 
@@ -43,51 +43,46 @@ const billValidation = [
   body('items.*.description').notEmpty().trim().withMessage('Item description is required'),
   body('items.*.quantity').isInt({ min: 1 }).withMessage('Valid quantity required'),
   body('items.*.unit_price').isFloat({ min: 0 }).withMessage('Valid unit price required'),
-  body('tax_amount').optional().isFloat({ min: 0 }).withMessage('Valid tax amount required'),
-  body('discount_amount').optional().isFloat({ min: 0 }).withMessage('Valid discount amount required'),
-  body('due_date').optional().isISO8601().withMessage('Valid due date required')
+  body('due_date').optional().isISO8601().withMessage('Valid due date required'),
+  body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes too long')
 ];
 
 // Feedback validation
 const feedbackValidation = [
   body('subject').notEmpty().trim().isLength({ min: 5, max: 200 }).withMessage('Subject must be 5-200 characters'),
-  body('message').notEmpty().trim().isLength({ min: 10, max: 2000 }).withMessage('Message must be 10-2000 characters'),
-  body('category').optional().isIn(['general', 'complaint', 'suggestion', 'support']).withMessage('Invalid category'),
-  body('priority').optional().isIn(['low', 'medium', 'high']).withMessage('Invalid priority')
+  body('message').notEmpty().trim().isLength({ min: 10, max: 5000 }).withMessage('Message must be 10-5000 characters'),
+  body('category').optional().isIn(['general', 'technical', 'billing', 'complaint', 'suggestion', 'feature_request']).withMessage('Invalid category'),
+  body('priority').optional().isIn(['low', 'medium', 'high', 'urgent']).withMessage('Invalid priority')
 ];
 
-// Campaign validation
+// Campaign validation (for future use)
 const campaignValidation = [
   body('name').notEmpty().trim().isLength({ min: 3, max: 100 }).withMessage('Campaign name must be 3-100 characters'),
   body('description').optional().trim().isLength({ max: 1000 }).withMessage('Description too long'),
   body('budget').optional().isFloat({ min: 0 }).withMessage('Valid budget required'),
   body('start_date').optional().isISO8601().withMessage('Valid start date required'),
-  body('end_date').optional().isISO8601().withMessage('Valid end date required'),
-  body('target_audience').optional().trim().isLength({ max: 500 }).withMessage('Target audience description too long')
+  body('end_date').optional().isISO8601().withMessage('Valid end date required')
 ];
 
-// Lead validation
+// Lead validation (for future use)
 const leadValidation = [
   body('name').notEmpty().trim().isLength({ min: 2, max: 100 }).withMessage('Lead name must be 2-100 characters'),
   body('email').optional().isEmail().normalizeEmail().withMessage('Valid email required'),
   body('phone').optional().isMobilePhone().withMessage('Valid phone number required'),
-  body('company').optional().trim().isLength({ max: 100 }).withMessage('Company name too long'),
-  body('source').optional().isIn(['website', 'social_media', 'referral', 'cold_call', 'email', 'other']).withMessage('Invalid source'),
-  body('status').optional().isIn(['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'converted', 'lost']).withMessage('Invalid status'),
-  body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes too long')
+  body('source').optional().isIn(['website', 'referral', 'cold_call', 'social_media', 'event', 'other']).withMessage('Invalid source'),
+  body('status').optional().isIn(['new', 'contacted', 'qualified', 'converted', 'lost']).withMessage('Invalid status')
 ];
 
-// Task validation
+// Task validation (for future use)
 const taskValidation = [
   body('title').notEmpty().trim().isLength({ min: 3, max: 200 }).withMessage('Task title must be 3-200 characters'),
-  body('description').optional().trim().isLength({ max: 2000 }).withMessage('Description too long'),
+  body('description').optional().trim().isLength({ max: 1000 }).withMessage('Description too long'),
   body('priority').optional().isIn(['low', 'medium', 'high', 'urgent']).withMessage('Invalid priority'),
   body('due_date').optional().isISO8601().withMessage('Valid due date required'),
-  body('assigned_to').optional().isInt({ min: 1 }).withMessage('Valid assignee ID required'),
-  body('category').optional().trim().isLength({ max: 50 }).withMessage('Category too long')
+  body('assigned_to').optional().isInt({ min: 1 }).withMessage('Valid assignee ID required')
 ];
 
-// Document validation
+// Document validation (for future use)
 const documentValidation = [
   body('title').notEmpty().trim().isLength({ min: 3, max: 200 }).withMessage('Document title must be 3-200 characters'),
   body('description').optional().trim().isLength({ max: 1000 }).withMessage('Description too long'),

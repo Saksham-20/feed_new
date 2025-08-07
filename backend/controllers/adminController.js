@@ -4,25 +4,17 @@ const User = require('../models/User');
 const Order = require('../models/Order');
 const Bill = require('../models/Bill');
 const { FeedbackThread } = require('../models/FeedbackThread');
-const sequelize = require('../database/connection');
 
-class AdminController {
+const adminController = {
   // Get dashboard overview
-  async getDashboardOverview(req, res) {
+  getDashboardOverview: async (req, res) => {
     try {
       const today = new Date();
       const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
 
       // User statistics
       const [userStats, pendingApprovals] = await Promise.all([
-        User.findAll({
-          attributes: [
-            'role',
-            [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-          ],
-          group: ['role'],
-          raw: true
-        }),
+        User.count({ group: ['role'] }),
         User.count({
           where: { 
             status: 'pending', 
@@ -32,177 +24,100 @@ class AdminController {
       ]);
 
       // Order statistics
-      const [orderStats, recentOrders] = await Promise.all([
-        Order.findAll({
-          attributes: [
-            'status',
-            [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-            [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_value']
-          ],
-          group: ['status'],
-          raw: true
-        }),
-        Order.findAll({
-          where: { created_at: { [Op.gte]: lastMonth } },
-          include: [{ model: User, as: 'client', attributes: ['fullname', 'email'] }],
-          order: [['created_at', 'DESC']],
-          limit: 10
-        })
-      ]);
-
-      // Feedback statistics
-      const feedbackStats = await FeedbackThread.findAll({
-        attributes: [
-          'status',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-        ],
-        group: ['status'],
-        raw: true
-      });
-
-      // Revenue statistics
-      const revenueStats = await Bill.findAll({
-        attributes: [
-          [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_revenue'],
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total_bills']
-        ],
-        where: { payment_status: 'paid' },
-        raw: true
-      });
-
-      const dashboardData = {
-        users: {
-          byRole: userStats,
-          pendingApprovals,
-          totalUsers: userStats.reduce((sum, stat) => sum + parseInt(stat.count), 0)
-        },
-        orders: {
-          byStatus: orderStats,
-          recent: recentOrders,
-          totalOrders: orderStats.reduce((sum, stat) => sum + parseInt(stat.count), 0),
-          totalValue: orderStats.reduce((sum, stat) => sum + parseFloat(stat.total_value || 0), 0)
-        },
-        feedback: {
-          byStatus: feedbackStats,
-          totalThreads: feedbackStats.reduce((sum, stat) => sum + parseInt(stat.count), 0)
-        },
-        revenue: revenueStats[0] || { total_revenue: 0, total_bills: 0 },
-        systemHealth: {
-          status: 'healthy',
-          databaseStatus: 'connected'
-        }
-      };
+      const orderCount = await Order.count();
+      const billCount = await Bill.count();
+      const feedbackCount = await FeedbackThread.count();
 
       res.json({
         success: true,
-        data: dashboardData
+        data: {
+          users: { total: await User.count(), pending: pendingApprovals },
+          orders: { total: orderCount },
+          bills: { total: billCount },
+          feedback: { total: feedbackCount }
+        }
       });
 
     } catch (error) {
-      console.error('Error fetching dashboard overview:', error);
+      console.error('Dashboard overview error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to fetch dashboard data',
-        error: error.message
+        message: 'Failed to fetch dashboard overview'
       });
     }
-  }
+  },
 
-  // Get all users with filtering
-  async getUsers(req, res) {
+  // Get users with pagination
+  getUsers: async (req, res) => {
     try {
-      const {
-        role,
-        status,
-        sortBy = 'created_at',
-        sortOrder = 'DESC',
-        page = 1,
-        limit = 20,
-        search
-      } = req.query;
-
-      let whereClause = {};
-
-      if (role && role !== 'all') {
-        whereClause.role = role;
-      }
-
-      if (status && status !== 'all') {
-        whereClause.status = status;
-      }
-
-      if (search) {
-        whereClause[Op.or] = [
-          { fullname: { [Op.iLike]: `%${search}%` } },
-          { email: { [Op.iLike]: `%${search}%` } },
-          { user_id: { [Op.iLike]: `%${search}%` } }
-        ];
-      }
-
+      const { page = 1, limit = 10, role, status } = req.query;
       const offset = (page - 1) * limit;
 
-      const { count, rows: users } = await User.findAndCountAll({
-        where: whereClause,
-        order: [[sortBy, sortOrder]],
+      const where = {};
+      if (role) where.role = role;
+      if (status) where.status = status;
+
+      const { count, rows } = await User.findAndCountAll({
+        where,
         limit: parseInt(limit),
-        offset: parseInt(offset),
-        attributes: { exclude: ['password_hash'] }
+        offset,
+        attributes: { exclude: ['password_hash'] },
+        order: [['created_at', 'DESC']]
       });
 
       res.json({
         success: true,
         data: {
-          users,
+          users: rows,
           pagination: {
             total: count,
             page: parseInt(page),
-            limit: parseInt(limit),
-            totalPages: Math.ceil(count / limit)
+            pages: Math.ceil(count / limit),
+            limit: parseInt(limit)
           }
         }
       });
 
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Get users error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to fetch users',
-        error: error.message
+        message: 'Failed to fetch users'
       });
     }
-  }
+  },
 
   // Get pending approvals
-  async getPendingApprovals(req, res) {
+  getPendingApprovals: async (req, res) => {
     try {
       const pendingUsers = await User.findAll({
-        where: {
+        where: { 
           status: 'pending',
           role: { [Op.in]: ['sales_purchase', 'marketing', 'office'] }
         },
-        order: [['created_at', 'ASC']],
-        attributes: { exclude: ['password_hash'] }
+        attributes: { exclude: ['password_hash'] },
+        order: [['created_at', 'ASC']]
       });
 
       res.json({
         success: true,
-        data: pendingUsers
+        data: { users: pendingUsers }
       });
 
     } catch (error) {
-      console.error('Error fetching pending approvals:', error);
+      console.error('Get pending approvals error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to fetch pending approvals',
-        error: error.message
+        message: 'Failed to fetch pending approvals'
       });
     }
-  }
+  },
 
   // Approve user
-  async approveUser(req, res) {
+  approveUser: async (req, res) => {
     try {
-      const { userId, note } = req.body;
+      const { userId } = req.body;
+      const adminId = req.user.id;
 
       const user = await User.findByPk(userId);
       if (!user) {
@@ -213,39 +128,30 @@ class AdminController {
       }
 
       await user.update({
-        status: 'approved',
-        approved_by: req.user.id,
-        approved_at: new Date(),
-        approval_note: note
+        status: 'active',
+        approved_by: adminId,
+        approved_at: new Date()
       });
 
       res.json({
         success: true,
         message: 'User approved successfully',
-        data: user.toJSON()
+        data: { user: user.toJSON() }
       });
 
     } catch (error) {
-      console.error('Error approving user:', error);
+      console.error('Approve user error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to approve user',
-        error: error.message
+        message: 'Failed to approve user'
       });
     }
-  }
+  },
 
   // Reject user
-  async rejectUser(req, res) {
+  rejectUser: async (req, res) => {
     try {
       const { userId, reason } = req.body;
-
-      if (!reason) {
-        return res.status(400).json({
-          success: false,
-          message: 'Rejection reason is required'
-        });
-      }
 
       const user = await User.findByPk(userId);
       if (!user) {
@@ -255,28 +161,21 @@ class AdminController {
         });
       }
 
-      await user.update({
-        status: 'rejected',
-        approved_by: req.user.id,
-        rejected_at: new Date(),
-        rejection_reason: reason
-      });
+      await user.update({ status: 'rejected' });
 
       res.json({
         success: true,
-        message: 'User rejected successfully',
-        data: user.toJSON()
+        message: 'User rejected successfully'
       });
 
     } catch (error) {
-      console.error('Error rejecting user:', error);
+      console.error('Reject user error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to reject user',
-        error: error.message
+        message: 'Failed to reject user'
       });
     }
   }
-}
+};
 
-module.exports = new AdminController();
+module.exports = adminController;

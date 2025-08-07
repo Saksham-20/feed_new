@@ -1,4 +1,4 @@
-// backend/models/Order.js - Enhanced order model
+// backend/models/Order.js - Order management model
 const { DataTypes } = require('sequelize');
 const sequelize = require('../database/connection');
 
@@ -21,7 +21,85 @@ const Order = sequelize.define('Order', {
       key: 'id'
     }
   },
+  order_date: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  due_date: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'confirmed', 'processing', 'completed', 'cancelled', 'on_hold'),
+    defaultValue: 'pending'
+  },
+  priority: {
+    type: DataTypes.ENUM('low', 'medium', 'high', 'urgent'),
+    defaultValue: 'medium'
+  },
+  items: {
+    type: DataTypes.JSON,
+    allowNull: false,
+    defaultValue: []
+  },
+  subtotal: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false,
+    defaultValue: 0.00
+  },
+  tax_amount: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false,
+    defaultValue: 0.00
+  },
+  discount_amount: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false,
+    defaultValue: 0.00
+  },
+  total_amount: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false,
+    defaultValue: 0.00
+  },
+  currency: {
+    type: DataTypes.STRING(3),
+    defaultValue: 'INR'
+  },
+  payment_status: {
+    type: DataTypes.ENUM('pending', 'partial', 'paid', 'refunded', 'cancelled'),
+    defaultValue: 'pending'
+  },
+  payment_method: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  shipping_address: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
+  billing_address: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
+  notes: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  internal_notes: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   created_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
+  },
+  assigned_to: {
     type: DataTypes.INTEGER,
     allowNull: true,
     references: {
@@ -29,100 +107,62 @@ const Order = sequelize.define('Order', {
       key: 'id'
     }
   },
-  product_name: {
-    type: DataTypes.STRING(255),
-    allowNull: false
+  metadata: {
+    type: DataTypes.JSON,
+    defaultValue: {}
   },
-  product_category: {
-    type: DataTypes.STRING(100),
-    allowNull: true
-  },
-  quantity: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    validate: {
-      min: 0.01
-    }
-  },
-  unit: {
-    type: DataTypes.STRING(20),
-    defaultValue: 'pcs'
-  },
-  unit_price: {
-    type: DataTypes.DECIMAL(12, 2),
-    allowNull: true,
-    validate: {
-      min: 0
-    }
-  },
-  discount: {
-    type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 0,
-    validate: {
-      min: 0,
-      max: 100
-    }
-  },
-  total_amount: {
-    type: DataTypes.DECIMAL(12, 2),
-    allowNull: true
-  },
-  order_type: {
-    type: DataTypes.ENUM('sale', 'purchase'),
-    defaultValue: 'sale'
-  },
-  priority: {
-    type: DataTypes.ENUM('low', 'medium', 'high', 'urgent'),
-    defaultValue: 'medium'
-  },
-  status: {
-    type: DataTypes.ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'),
-    defaultValue: 'pending'
-  },
-  expected_delivery_date: {
-    type: DataTypes.DATEONLY,
-    allowNull: true
-  },
-  actual_delivery_date: {
-    type: DataTypes.DATEONLY,
-    allowNull: true
-  },
-  description: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-  notes: {
-    type: DataTypes.TEXT,
-    allowNull: true
+  attachments: {
+    type: DataTypes.JSON,
+    defaultValue: []
   }
 }, {
   tableName: 'orders',
   timestamps: true,
   underscored: true,
   hooks: {
-    beforeCreate: (order) => {
-      // Generate order number if not provided
+    beforeCreate: async (order) => {
       if (!order.order_number) {
-        order.order_number = `ORD_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        const currentYear = new Date().getFullYear();
+        const count = await Order.count({
+          where: sequelize.where(
+            sequelize.fn('YEAR', sequelize.col('created_at')),
+            currentYear
+          )
+        });
+        order.order_number = `ORD-${currentYear}-${String(count + 1).padStart(4, '0')}`;
       }
-      // Calculate total amount
-      if (order.unit_price && order.quantity) {
-        const subtotal = order.unit_price * order.quantity;
-        const discountAmount = subtotal * (order.discount / 100);
-        order.total_amount = subtotal - discountAmount;
+      
+      // Calculate totals
+      if (order.items && Array.isArray(order.items)) {
+        order.subtotal = order.items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+        order.total_amount = order.subtotal + order.tax_amount - order.discount_amount;
       }
     },
     beforeUpdate: (order) => {
-      // Recalculate total if price or quantity changes
-      if (order.changed('unit_price') || order.changed('quantity') || order.changed('discount')) {
-        if (order.unit_price && order.quantity) {
-          const subtotal = order.unit_price * order.quantity;
-          const discountAmount = subtotal * (order.discount / 100);
-          order.total_amount = subtotal - discountAmount;
-        }
+      // Recalculate totals if items changed
+      if (order.changed('items') && order.items && Array.isArray(order.items)) {
+        order.subtotal = order.items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+        order.total_amount = order.subtotal + order.tax_amount - order.discount_amount;
       }
     }
-  }
+  },
+  indexes: [
+    {
+      fields: ['order_number']
+    },
+    {
+      fields: ['client_id']
+    },
+    {
+      fields: ['status']
+    },
+    {
+      fields: ['order_date']
+    },
+    {
+      fields: ['assigned_to']
+    }
+  ]
 });
 
 module.exports = Order;

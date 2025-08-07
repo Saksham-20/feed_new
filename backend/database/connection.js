@@ -1,4 +1,4 @@
-// backend/database/connection.js - Database connection setup
+// backend/database/connection.js - Database connection
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
@@ -12,34 +12,13 @@ const sequelize = new Sequelize(
     dialect: 'mysql',
     logging: process.env.NODE_ENV === 'development' ? console.log : false,
     pool: {
-      max: 10,
+      max: 5,
       min: 0,
       acquire: 30000,
       idle: 10000
     },
-    dialectOptions: {
-      charset: 'utf8mb4',
-      collate: 'utf8mb4_unicode_ci'
-    },
-    define: {
-      timestamps: true,
-      underscored: true,
-      freezeTableName: true
-    }
+    timezone: '+05:30' // Indian timezone
   }
 );
-
-// Test connection
-const testConnection = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('✅ Database connection established successfully');
-  } catch (error) {
-    console.error('❌ Unable to connect to database:', error);
-    process.exit(1);
-  }
-};
-
-testConnection();
 
 module.exports = sequelize;
