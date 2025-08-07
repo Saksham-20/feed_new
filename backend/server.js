@@ -49,6 +49,8 @@ if (process.env.NODE_ENV === 'development') {
 
 // Serve static files
 app.use('/uploads', express.static('uploads'));
+// Mount auth routes
+app.use('/auth', require('./routes/auth'));
 
 // Health check endpoint
 app.get('/health', async (req, res) => {

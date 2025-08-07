@@ -29,7 +29,7 @@ try {
 let LoginScreen, SignupScreen, DashboardScreen, LoadingSpinner;
 
 try {
-  LoginScreen = require('./src/screens/LoginScreen').default;
+  LoginScreen = require('./src/screens/Loginscreen').default;
 } catch (error) {
   console.warn('LoginScreen not found, using fallback');
   LoginScreen = ({ onLogin }) => (
@@ -41,7 +41,7 @@ try {
 }
 
 try {
-  SignupScreen = require('./src/screens/SignupScreen').default;
+  SignupScreen = require('./src/screens/Signupscreen').default;
 } catch (error) {
   console.warn('SignupScreen not found, using fallback');
   SignupScreen = ({ navigation }) => (

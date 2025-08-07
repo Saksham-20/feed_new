@@ -1,4 +1,4 @@
-// backend/models/User.js - Enhanced user model
+// backend/models/User.js - Fixed user model with proper user_id generation
 const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const sequelize = require('../database/connection');
@@ -12,7 +12,8 @@ const User = sequelize.define('User', {
   user_id: {
     type: DataTypes.STRING(50),
     unique: true,
-    allowNull: false
+    allowNull: false,
+    defaultValue: () => `USER_${Date.now()}_${Math.floor(Math.random() * 10000)}` // Add default value as fallback
   },
   fullname: {
     type: DataTypes.STRING(255),
@@ -93,16 +94,27 @@ const User = sequelize.define('User', {
   timestamps: true,
   underscored: true,
   hooks: {
+    beforeValidate: async (user, options) => {
+      // Generate user_id if not provided - use beforeValidate instead of beforeCreate
+      if (!user.user_id) {
+        user.user_id = `USER_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+      }
+      
+      // Set approval requirement based on role
+      if (user.role) {
+        user.approval_required = ['sales_purchase', 'marketing', 'office'].includes(user.role);
+      }
+    },
     beforeCreate: async (user) => {
+      // Hash password
       if (user.password_hash) {
         user.password_hash = await bcrypt.hash(user.password_hash, 12);
       }
-      // Generate user_id if not provided
+      
+      // Double-check user_id generation
       if (!user.user_id) {
-        user.user_id = `USER_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        user.user_id = `USER_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
       }
-      // Set approval requirement based on role
-      user.approval_required = ['sales_purchase', 'marketing', 'office'].includes(user.role);
     },
     beforeUpdate: async (user) => {
       if (user.changed('password_hash')) {
