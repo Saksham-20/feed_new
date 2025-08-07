@@ -1,413 +1,327 @@
-// src/services/api.js - Enhanced API service with real-time features
-import axios from 'axios';
+// src/services/api.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { STORAGE_KEYS } from '../utils/constants';
-import { EventEmitter } from 'events';
 
-// Configuration based on environment
-const API_CONFIG = {
-  development: {
-    BASE_URL: 'http://192.168.1.22:3000', // Your current dev URL
-    TIMEOUT: 10000,
-  },
-  production: {
-    BASE_URL: 'https://your-production-api.com',
-    TIMEOUT: 15000,
-  }
+// API Configuration
+const API_BASE_URL = 'http://192.168.1.22:3000'; // Change this to your actual API URL
+const API_TIMEOUT = 30000; // 30 seconds
+
+// Storage keys
+const STORAGE_KEYS = {
+  ACCESS_TOKEN: 'access_token',
+  REFRESH_TOKEN: 'refresh_token',
+  USER_DATA: 'user_data',
 };
 
-const ENV = __DEV__ ? 'development' : 'production';
-const { BASE_URL, TIMEOUT } = API_CONFIG[ENV];
+// Custom fetch with timeout
+const fetchWithTimeout = (url, options = {}, timeout = API_TIMEOUT) => {
+  return Promise.race([
+    fetch(url, options),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeout)
+    )
+  ]);
+};
 
-class ApiService extends EventEmitter {
+// API Class
+class ApiService {
   constructor() {
-    super();
-    this.isConnected = false;
-    this.retryQueue = [];
-    this.setupAxiosInstance();
+    this.baseURL = API_BASE_URL;
+    this.timeout = API_TIMEOUT;
   }
 
-  setupAxiosInstance() {
-    this.api = axios.create({
-      baseURL: BASE_URL,
-      timeout: TIMEOUT,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // Request interceptor
-    this.api.interceptors.request.use(
-      async (config) => {
-        try {
-          const token = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-          if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-          }
-          
-          // Emit request event
-          this.emit('requestStart', config);
-          
-          return config;
-        } catch (error) {
-          console.error('Error in request interceptor:', error);
-          return config;
-        }
-      },
-      (error) => {
-        this.emit('requestError', error);
-        return Promise.reject(error);
-      }
-    );
-
-    // Response interceptor
-    this.api.interceptors.response.use(
-      (response) => {
-        this.emit('requestEnd', response);
-        return response;
-      },
-      async (error) => {
-        this.emit('requestError', error);
-        
-        const originalRequest = error.config;
-        
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          originalRequest._retry = true;
-          
-          try {
-            const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
-            
-            if (refreshToken) {
-              const response = await axios.post(`${BASE_URL}/api/auth/refresh`, {
-                refreshToken,
-              });
-
-              if (response.data.success) {
-                const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-                
-                await Promise.all([
-                  AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken),
-                  AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken),
-                ]);
-
-                originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-                return this.api(originalRequest);
-              }
-            }
-          } catch (refreshError) {
-            await this.handleAuthFailure();
-            return Promise.reject(refreshError);
-          }
-        }
-
-        // Handle network errors and retry
-        if (error.code === 'NETWORK_ERROR' || error.code === 'ECONNABORTED') {
-          return this.handleNetworkError(originalRequest);
-        }
-
-        return Promise.reject(error);
-      }
-    );
-  }
-
-  async handleAuthFailure() {
-    await AsyncStorage.multiRemove([
-      STORAGE_KEYS.ACCESS_TOKEN,
-      STORAGE_KEYS.REFRESH_TOKEN,
-      STORAGE_KEYS.USER,
-    ]);
-    this.emit('authFailure');
-  }
-
-  async handleNetworkError(originalRequest) {
-    // Add to retry queue if offline
-    this.retryQueue.push(originalRequest);
-    this.emit('networkError', originalRequest);
-    
-    // Try offline fallback
-    return this.getOfflineData(originalRequest);
-  }
-
-  async getOfflineData(request) {
-    // Implement offline data retrieval based on request
-    const cacheKey = `offline_${request.url}_${JSON.stringify(request.params || {})}`;
+  // Get stored token
+  async getToken() {
     try {
-      const cachedData = await AsyncStorage.getItem(cacheKey);
-      if (cachedData) {
-        return { data: JSON.parse(cachedData), fromCache: true };
-      }
+      return await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     } catch (error) {
-      console.error('Error getting offline data:', error);
+      console.error('Error getting token:', error);
+      return null;
     }
-    throw new Error('No offline data available');
   }
 
-  // Auth methods
-  async register(userData) {
-    return this.api.post('/api/auth/register', userData);
+  // Set token
+  async setToken(token) {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
+    } catch (error) {
+      console.error('Error setting token:', error);
+    }
   }
 
-  async login(credentials) {
-    const response = await this.api.post('/api/auth/login', credentials);
-    if (response.data.success) {
-      const { accessToken, refreshToken, user } = response.data.data;
-      await Promise.all([
-        AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken),
-        AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken),
-        AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user)),
+  // Clear token
+  async clearToken() {
+    try {
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.ACCESS_TOKEN,
+        STORAGE_KEYS.REFRESH_TOKEN,
+        STORAGE_KEYS.USER_DATA,
       ]);
-      this.emit('authSuccess', user);
-    }
-    return response;
-  }
-
-  async logout() {
-    await AsyncStorage.multiRemove([
-      STORAGE_KEYS.ACCESS_TOKEN,
-      STORAGE_KEYS.REFRESH_TOKEN,
-      STORAGE_KEYS.USER,
-    ]);
-    this.emit('logout');
-  }
-
-  async getProfile() {
-    return this.api.get('/api/auth/profile');
-  }
-
-  async updateProfile(profileData) {
-    return this.api.put('/api/auth/profile', profileData);
-  }
-
-  // Admin methods
-  async getAdminDashboard() {
-    return this.api.get('/api/admin/dashboard/overview');
-  }
-
-  async getUsers(params = {}) {
-    return this.api.get('/api/admin/users', { params });
-  }
-
-  async getPendingApprovals() {
-    return this.api.get('/api/admin/pending-approvals');
-  }
-
-  async approveUser(userId, reason = '') {
-    return this.api.post('/api/admin/approve-user', { userId, reason });
-  }
-
-  async rejectUser(userId, reason = '') {
-    return this.api.post('/api/admin/reject-user', { userId, reason });
-  }
-
-  // Client methods
-  async getClientDashboard() {
-    return this.api.get('/api/client/dashboard');
-  }
-
-  async getOrders(params = {}) {
-    return this.api.get('/api/client/orders', { params });
-  }
-
-  async getOrder(orderId) {
-    return this.api.get(`/api/client/orders/${orderId}`);
-  }
-
-  async createOrder(orderData) {
-    return this.api.post('/api/client/orders', orderData);
-  }
-
-  async getBills(params = {}) {
-    return this.api.get('/api/client/bills', { params });
-  }
-
-  async getBill(billId) {
-    return this.api.get(`/api/client/bills/${billId}`);
-  }
-
-  // Employee methods
-  async getSalesDashboard() {
-    return this.api.get('/api/employees/sales/dashboard');
-  }
-
-  async getMarketingDashboard() {
-    return this.api.get('/api/employees/marketing/dashboard');
-  }
-
-  async getOfficeDashboard() {
-    return this.api.get('/api/employees/office/dashboard');
-  }
-
-  // Feedback methods
-  async getFeedback(params = {}) {
-    return this.api.get('/api/feedback', { params });
-  }
-
-  async getClientFeedback() {
-    return this.api.get('/api/feedback/client');
-  }
-
-  async createFeedback(feedbackData) {
-    return this.api.post('/api/feedback', feedbackData);
-  }
-
-  async getFeedbackThread(threadId) {
-    return this.api.get(`/api/feedback/${threadId}`);
-  }
-
-  async replyToFeedback(threadId, replyData) {
-    return this.api.post(`/api/feedback/${threadId}/reply`, replyData);
-  }
-
-  // File upload methods
-  async uploadFiles(files, category = 'general') {
-    const formData = new FormData();
-    
-    files.forEach((file, index) => {
-      formData.append('files', file);
-    });
-    formData.append('category', category);
-
-    return this.api.post('/api/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      timeout: 30000, // 30 second timeout for uploads
-    });
-  }
-
-  async getUploads(params = {}) {
-    return this.api.get('/api/uploads', { params });
-  }
-
-  async deleteUpload(uploadId) {
-    return this.api.delete(`/api/uploads/${uploadId}`);
-  }
-
-  // Notification methods
-  async getNotifications(params = {}) {
-    return this.api.get('/api/notifications', { params });
-  }
-
-  async markNotificationRead(notificationId) {
-    return this.api.put(`/api/notifications/${notificationId}/read`);
-  }
-
-  async markAllNotificationsRead() {
-    return this.api.put('/api/notifications/mark-all-read');
-  }
-
-  async getUnreadCount() {
-    return this.api.get('/api/notifications/unread-count');
-  }
-
-  // Connection status methods
-  async checkConnection() {
-    try {
-      await this.api.get('/health', { timeout: 5000 });
-      this.isConnected = true;
-      this.emit('connected');
-      return true;
     } catch (error) {
-      this.isConnected = false;
-      this.emit('disconnected');
-      return false;
+      console.error('Error clearing tokens:', error);
     }
   }
 
-  // Retry failed requests
-  async retryFailedRequests() {
-    if (this.retryQueue.length === 0) return;
-    
-    const requests = [...this.retryQueue];
-    this.retryQueue = [];
-    
-    for (const request of requests) {
-      try {
-        await this.api(request);
-        this.emit('requestRetrySuccess', request);
-      } catch (error) {
-        this.retryQueue.push(request);
-        this.emit('requestRetryFailed', { request, error });
-      }
-    }
-  }
-
-  // Real-time polling for updates
-  startPolling(endpoint, interval = 30000, callback) {
-    const pollData = async () => {
-      try {
-        const response = await this.api.get(endpoint);
-        callback(null, response.data);
-      } catch (error) {
-        callback(error, null);
-      }
+  // Build headers
+  async buildHeaders(additionalHeaders = {}) {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...additionalHeaders,
     };
 
-    // Initial call
-    pollData();
+    const token = await this.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
-    // Set up interval
-    const intervalId = setInterval(pollData, interval);
-    
-    // Return cleanup function
-    return () => clearInterval(intervalId);
+    return headers;
   }
 
-  // Batch requests
-  async batchRequests(requests) {
+  // Handle API response
+  async handleResponse(response) {
+    const contentType = response.headers.get('content-type');
+    let data;
+
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      data = await response.text();
+    }
+
+    if (!response.ok) {
+      const error = new Error(data.message || `HTTP ${response.status}`);
+      error.status = response.status;
+      error.response = { status: response.status, data };
+      throw error;
+    }
+
+    return { data, status: response.status };
+  }
+
+  // Generic request method
+  async request(endpoint, options = {}) {
     try {
-      const responses = await Promise.allSettled(
-        requests.map(request => this.api(request))
-      );
+      const url = `${this.baseURL}${endpoint}`;
+      const headers = await this.buildHeaders(options.headers);
       
-      return responses.map((result, index) => ({
-        request: requests[index],
-        success: result.status === 'fulfilled',
-        data: result.status === 'fulfilled' ? result.value.data : null,
-        error: result.status === 'rejected' ? result.reason : null,
-      }));
+      const requestOptions = {
+        method: 'GET',
+        headers,
+        ...options,
+      };
+
+      // Add body for POST, PUT, PATCH requests
+      if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+        requestOptions.body = JSON.stringify(options.body);
+      } else if (options.body) {
+        requestOptions.body = options.body;
+        // Remove content-type for FormData to let browser set it
+        if (options.body instanceof FormData) {
+          delete requestOptions.headers['Content-Type'];
+        }
+      }
+
+      console.log(`🌐 API Request: ${requestOptions.method} ${url}`);
+      
+      const response = await fetchWithTimeout(url, requestOptions, this.timeout);
+      const result = await this.handleResponse(response);
+      
+      console.log(`✅ API Response: ${result.status}`);
+      return result;
+      
     } catch (error) {
-      console.error('Batch request error:', error);
+      console.error(`❌ API Error: ${endpoint}`, error.message);
+      
+      // Handle specific error cases
+      if (error.status === 401) {
+        // Unauthorized - clear token and redirect to login
+        await this.clearToken();
+      }
+      
       throw error;
     }
   }
 
-  // Cache management
-  async cacheResponse(key, data, ttl = 300000) { // 5 minutes default
+  // GET request
+  async get(endpoint, params = {}) {
+    const queryString = Object.keys(params).length 
+      ? '?' + new URLSearchParams(params).toString() 
+      : '';
+    
+    return this.request(`${endpoint}${queryString}`, {
+      method: 'GET',
+    });
+  }
+
+  // POST request
+  async post(endpoint, body = {}) {
+    return this.request(endpoint, {
+      method: 'POST',
+      body,
+    });
+  }
+
+  // PUT request
+  async put(endpoint, body = {}) {
+    return this.request(endpoint, {
+      method: 'PUT',
+      body,
+    });
+  }
+
+  // PATCH request
+  async patch(endpoint, body = {}) {
+    return this.request(endpoint, {
+      method: 'PATCH',
+      body,
+    });
+  }
+
+  // DELETE request
+  async delete(endpoint) {
+    return this.request(endpoint, {
+      method: 'DELETE',
+    });
+  }
+
+  // Upload file
+  async upload(endpoint, file, additionalData = {}) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Add additional data to form
+    Object.keys(additionalData).forEach(key => {
+      formData.append(key, additionalData[key]);
+    });
+
+    return this.request(endpoint, {
+      method: 'POST',
+      body: formData,
+    });
+  }
+}
+
+// Auth Service
+class AuthService {
+  constructor(apiService) {
+    this.api = apiService;
+  }
+
+  // Login
+  async login(email, password) {
     try {
-      const cacheEntry = {
-        data,
-        timestamp: Date.now(),
-        ttl,
+      const response = await this.api.post('/api/auth/login', {
+        email,
+        password,
+      });
+
+      if (response.data.success) {
+        // Store tokens and user data
+        const { accessToken, refreshToken } = response.data.data.tokens;
+        const userData = response.data.data.user;
+
+        await AsyncStorage.multiSet([
+          [STORAGE_KEYS.ACCESS_TOKEN, accessToken],
+          [STORAGE_KEYS.REFRESH_TOKEN, refreshToken || ''],
+          [STORAGE_KEYS.USER_DATA, JSON.stringify(userData)],
+        ]);
+
+        return {
+          success: true,
+          user: userData,
+          tokens: { accessToken, refreshToken },
+        };
+      }
+
+      return {
+        success: false,
+        error: response.data.message || 'Login failed',
       };
-      await AsyncStorage.setItem(`cache_${key}`, JSON.stringify(cacheEntry));
     } catch (error) {
-      console.error('Cache save error:', error);
+      console.error('Login error:', error);
+      return {
+        success: false,
+        error: error.message || 'Network error. Please try again.',
+      };
     }
   }
 
-  async getCachedResponse(key) {
+  // Register
+  async register(userData) {
     try {
-      const cached = await AsyncStorage.getItem(`cache_${key}`);
-      if (cached) {
-        const entry = JSON.parse(cached);
-        if (Date.now() - entry.timestamp < entry.ttl) {
-          return entry.data;
-        }
-        // Expired, remove it
-        await AsyncStorage.removeItem(`cache_${key}`);
-      }
-      return null;
+      const response = await this.api.post('/api/auth/register', userData);
+      return response;
     } catch (error) {
-      console.error('Cache read error:', error);
+      console.error('Register error:', error);
+      throw error;
+    }
+  }
+
+  // Logout
+  async logout() {
+    try {
+      await this.api.post('/api/auth/logout');
+    } catch (error) {
+      console.warn('Logout API call failed:', error.message);
+    } finally {
+      // Always clear local data
+      await this.api.clearToken();
+    }
+  }
+
+  // Get current user
+  async getCurrentUser() {
+    try {
+      const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+      return userData ? JSON.parse(userData) : null;
+    } catch (error) {
+      console.error('Error getting current user:', error);
       return null;
+    }
+  }
+
+  // Check if user is authenticated
+  async isAuthenticated() {
+    const token = await this.api.getToken();
+    const userData = await this.getCurrentUser();
+    return !!(token && userData);
+  }
+
+  // Refresh token
+  async refreshToken() {
+    try {
+      const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
+      }
+
+      const response = await this.api.post('/api/auth/refresh', {
+        refreshToken,
+      });
+
+      if (response.data.success) {
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+        
+        await AsyncStorage.multiSet([
+          [STORAGE_KEYS.ACCESS_TOKEN, accessToken],
+          [STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken || refreshToken],
+        ]);
+
+        return { success: true };
+      }
+
+      throw new Error(response.data.message || 'Token refresh failed');
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      await this.api.clearToken();
+      return { success: false, error: error.message };
     }
   }
 }
 
-// Create singleton instance
-const apiService = new ApiService();
+// Create instances
+const api = new ApiService();
+const auth = new AuthService(api);
 
-// Export both the instance and the class for flexibility
-export default apiService;
-export { ApiService };
+export { api, auth };
+export default api;

@@ -1,124 +1,239 @@
-// src/components/common/Input.js
 import React, { useState } from 'react';
-import { 
-  View, 
-  TextInput, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
+
+const theme = {
+  colors: {
+    primary: '#007AFF',
+    textPrimary: '#1F2937',
+    textSecondary: '#6B7280',
+    border: '#E5E7EB',
+    surface: '#FFFFFF',
+    error: '#EF4444',
+  }
+};
 
 const Input = ({
   label,
   value,
   onChangeText,
   placeholder,
-  secureTextEntry,
   keyboardType = 'default',
-  error,
+  autoCapitalize = 'none',
+  autoComplete,
+  secureTextEntry = false,
   multiline = false,
-  numberOfLines = 1,
-  editable = true,
-  style,
+  numberOfLines,
   leftIcon,
   rightIcon,
   onRightIconPress,
+  required = false,
+  error,
+  disabled = false,
+  style,
+  inputStyle,
+  containerStyle,
+  ...props
 }) => {
-  const [isSecure, setIsSecure] = useState(secureTextEntry);
   const [isFocused, setIsFocused] = useState(false);
+  const [animatedValue] = useState(new Animated.Value(value ? 1 : 0));
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    Animated.timing(animatedValue, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    if (!value) {
+      Animated.timing(animatedValue, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+    }
+  };
+
+  const labelStyle = {
+    position: 'absolute',
+    left: leftIcon ? 50 : 16,
+    top: animatedValue.interpolate({
+      inputRange: [0, 1],
+      outputRange: [18, -8],
+    }),
+    fontSize: animatedValue.interpolate({
+      inputRange: [0, 1],
+      outputRange: [16, 12],
+    }),
+    color: animatedValue.interpolate({
+      inputRange: [0, 1],
+      outputRange: [theme.colors.textSecondary, isFocused ? theme.colors.primary : theme.colors.textSecondary],
+    }),
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 4,
+    zIndex: 1,
+  };
+
+  const containerBorderColor = error 
+    ? theme.colors.error 
+    : isFocused 
+      ? theme.colors.primary 
+      : theme.colors.border;
 
   return (
-    <View style={[styles.container, style]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+    <View style={[styles.container, containerStyle]}>
       <View style={[
         styles.inputContainer,
+        { borderColor: containerBorderColor },
         isFocused && styles.inputContainerFocused,
         error && styles.inputContainerError,
+        disabled && styles.inputContainerDisabled,
+        style
       ]}>
         {leftIcon && (
-          <Icon name={leftIcon} size={20} color="#6B7280" style={styles.leftIcon} />
+          <View style={styles.leftIconContainer}>
+            <Icon 
+              name={leftIcon} 
+              size={20} 
+              color={isFocused ? theme.colors.primary : theme.colors.textSecondary} 
+            />
+          </View>
         )}
-        <TextInput
-          style={[styles.input, leftIcon && styles.inputWithLeftIcon]}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
-          secureTextEntry={isSecure}
-          keyboardType={keyboardType}
-          multiline={multiline}
-          numberOfLines={numberOfLines}
-          editable={editable}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-        />
-        {secureTextEntry && (
-          <TouchableOpacity
-            style={styles.rightIcon}
-            onPress={() => setIsSecure(!isSecure)}
-          >
-            <Icon name={isSecure ? 'eye' : 'eye-off'} size={20} color="#6B7280" />
-          </TouchableOpacity>
-        )}
-        {rightIcon && !secureTextEntry && (
-          <TouchableOpacity
-            style={styles.rightIcon}
+
+        <View style={styles.textInputWrapper}>
+          {label && (
+            <Animated.Text style={labelStyle}>
+              {label}{required && ' *'}
+            </Animated.Text>
+          )}
+          
+          <TextInput
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={isFocused ? '' : placeholder}
+            placeholderTextColor={theme.colors.textSecondary}
+            keyboardType={keyboardType}
+            autoCapitalize={autoCapitalize}
+            autoComplete={autoComplete}
+            secureTextEntry={secureTextEntry}
+            multiline={multiline}
+            numberOfLines={numberOfLines}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            editable={!disabled}
+            style={[
+              styles.textInput,
+              leftIcon && styles.textInputWithLeftIcon,
+              rightIcon && styles.textInputWithRightIcon,
+              multiline && styles.textInputMultiline,
+              disabled && styles.textInputDisabled,
+              inputStyle
+            ]}
+            {...props}
+          />
+        </View>
+
+        {rightIcon && (
+          <TouchableOpacity 
+            style={styles.rightIconContainer}
             onPress={onRightIconPress}
+            disabled={!onRightIconPress}
           >
-            <Icon name={rightIcon} size={20} color="#6B7280" />
+            <Icon 
+              name={rightIcon} 
+              size={20} 
+              color={theme.colors.textSecondary} 
+            />
           </TouchableOpacity>
         )}
       </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <Icon name="alert-circle" size={16} color={theme.colors.error} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 8,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
+    marginBottom: 20,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surface,
+    minHeight: 56,
+    paddingHorizontal: 16,
   },
   inputContainerFocused: {
-    borderColor: '#6366F1',
+    borderWidth: 2,
   },
   inputContainerError: {
-    borderColor: '#EF4444',
+    borderColor: theme.colors.error,
   },
-  input: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#111827',
+  inputContainerDisabled: {
+    backgroundColor: '#F9FAFB',
+    opacity: 0.6,
   },
-  inputWithLeftIcon: {
-    paddingLeft: 8,
+  leftIconContainer: {
+    marginRight: 12,
   },
-  leftIcon: {
+  rightIconContainer: {
     marginLeft: 12,
+    padding: 4,
   },
-  rightIcon: {
-    padding: 12,
+  textInputWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
+  textInput: {
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+    margin: 0,
+  },
+  textInputWithLeftIcon: {
+    paddingLeft: 0,
+  },
+  textInputWithRightIcon: {
+    paddingRight: 0,
+  },
+  textInputMultiline: {
+    textAlignVertical: 'top',
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  textInputDisabled: {
+    color: theme.colors.textSecondary,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 4,
   },
   errorText: {
     fontSize: 14,
-    color: '#EF4444',
-    marginTop: 4,
+    color: theme.colors.error,
+    marginLeft: 6,
   },
 });
 

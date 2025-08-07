@@ -1,143 +1,222 @@
 // src/styles/theme.js
-export const theme = {
-  colors: {
-    // Primary colors
-    primary: '#6366F1',
-    primaryDark: '#4F46E5',
-    primaryLight: '#8B5CF6',
-    
-    // Secondary colors
-    secondary: '#10B981',
-    secondaryDark: '#059669',
-    secondaryLight: '#34D399',
-    
-    // Status colors
-    success: '#10B981',
-    warning: '#F59E0B',
-    error: '#EF4444',
-    info: '#3B82F6',
-    
-    // Neutral colors
-    white: '#FFFFFF',
-    black: '#000000',
-    
-    // Gray scale
-    gray50: '#F9FAFB',
-    gray100: '#F3F4F6',
-    gray200: '#E5E7EB',
-    gray300: '#D1D5DB',
-    gray400: '#9CA3AF',
-    gray500: '#6B7280',
-    gray600: '#4B5563',
-    gray700: '#374151',
-    gray800: '#1F2937',
-    gray900: '#111827',
-    
-    // Text colors
-    textPrimary: '#111827',
-    textSecondary: '#6B7280',
-    textMuted: '#9CA3AF',
-    textInverse: '#FFFFFF',
-    
-    // Background colors
-    background: '#F8FAFC',
-    backgroundSecondary: '#F1F5F9',
-    surface: '#FFFFFF',
-    surfaceSecondary: '#F8FAFC',
-    
-    // Border colors
-    border: '#E2E8F0',
-    borderLight: '#F1F5F9',
-    borderDark: '#CBD5E1',
-    
-    // Special colors
-    overlay: 'rgba(0, 0, 0, 0.5)',
-    overlayLight: 'rgba(0, 0, 0, 0.1)',
+import { Dimensions } from 'react-native';
+
+const { width, height } = Dimensions.get('window');
+
+// Color palette
+const colors = {
+  // Primary colors
+  primary: '#007AFF',
+  primaryLight: '#5AC8FA',
+  primaryDark: '#0051D5',
+  
+  // Secondary colors
+  secondary: '#FF6B35',
+  secondaryLight: '#FF8A65',
+  secondaryDark: '#E64A19',
+  
+  // Neutral colors
+  white: '#FFFFFF',
+  black: '#000000',
+  gray: {
+    50: '#F9FAFB',
+    100: '#F3F4F6',
+    200: '#E5E7EB',
+    300: '#D1D5DB',
+    400: '#9CA3AF',
+    500: '#6B7280',
+    600: '#4B5563',
+    700: '#374151',
+    800: '#1F2937',
+    900: '#111827',
   },
   
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
-    xxl: 48,
-  },
+  // Semantic colors
+  success: '#10B981',
+  successLight: '#34D399',
+  successDark: '#059669',
   
-  fontSizes: {
-    xs: 12,
-    sm: 14,
-    md: 16,
-    lg: 18,
-    xl: 20,
-    xxl: 24,
-    xxxl: 32,
-  },
+  warning: '#F59E0B',
+  warningLight: '#FBBF24',
+  warningDark: '#D97706',
   
-  fontWeights: {
-    normal: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700',
-  },
+  error: '#EF4444',
+  errorLight: '#F87171',
+  errorDark: '#DC2626',
   
-  borderRadius: {
-    sm: 4,
-    md: 8,
-    lg: 12,
-    xl: 16,
-    full: 9999,
-  },
+  info: '#3B82F6',
+  infoLight: '#60A5FA',
+  infoDark: '#2563EB',
   
-  shadows: {
-    sm: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 1,
+  // Background colors
+  background: '#F8F9FA',
+  surface: '#FFFFFF',
+  card: '#FFFFFF',
+  
+  // Text colors
+  textPrimary: '#1F2937',
+  textSecondary: '#6B7280',
+  textTertiary: '#9CA3AF',
+  textInverse: '#FFFFFF',
+  
+  // Border colors
+  border: '#E5E7EB',
+  borderLight: '#F3F4F6',
+  borderDark: '#D1D5DB',
+  
+  // Status colors
+  online: '#10B981',
+  offline: '#EF4444',
+  away: '#F59E0B',
+  busy: '#EF4444',
+};
+
+// Typography
+const fontSizes = {
+  xs: 12,
+  sm: 14,
+  md: 16,
+  lg: 18,
+  xl: 20,
+  '2xl': 24,
+  '3xl': 30,
+  '4xl': 36,
+  '5xl': 48,
+};
+
+const fontWeights = {
+  thin: '100',
+  extraLight: '200',
+  light: '300',
+  normal: '400',
+  medium: '500',
+  semibold: '600',
+  bold: '700',
+  extrabold: '800',
+  black: '900',
+};
+
+const lineHeights = {
+  none: 1,
+  tight: 1.25,
+  snug: 1.375,
+  normal: 1.5,
+  relaxed: 1.625,
+  loose: 2,
+};
+
+// Spacing
+const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  '2xl': 48,
+  '3xl': 64,
+  '4xl': 80,
+  '5xl': 96,
+};
+
+// Border radius
+const borderRadius = {
+  none: 0,
+  sm: 4,
+  md: 8,
+  lg: 12,
+  xl: 16,
+  '2xl': 20,
+  '3xl': 24,
+  full: 9999,
+};
+
+// Shadows
+const shadows = {
+  sm: {
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
     },
-    md: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 3.84,
-      elevation: 5,
-    },
-    lg: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 6.27,
-      elevation: 10,
-    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  
-  layout: {
-    headerHeight: 60,
-    tabBarHeight: 60,
-    statusBarHeight: 24,
-  },
-  
-  animations: {
-    duration: {
-      fast: 150,
-      normal: 300,
-      slow: 500,
+  md: {
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
     },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  lg: {
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  xl: {
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+};
+
+// Layout
+const layout = {
+  window: {
+    width,
+    height,
+  },
+  isSmallDevice: width < 375,
+  headerHeight: 60,
+  tabBarHeight: 80,
+  statusBarHeight: 24,
+};
+
+// Animation
+const animations = {
+  timing: {
+    fast: 150,
+    normal: 300,
+    slow: 500,
+  },
+  easing: {
+    linear: 'linear',
+    ease: 'ease',
+    easeIn: 'ease-in',
+    easeOut: 'ease-out',
+    easeInOut: 'ease-in-out',
   },
 };
 
 // Common styles
-export const commonStyles = {
+const commonStyles = {
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.background,
   },
   
-  centered: {
-    alignItems: 'center',
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  
+  center: {
     justifyContent: 'center',
+    alignItems: 'center',
   },
   
   row: {
@@ -145,54 +224,139 @@ export const commonStyles = {
     alignItems: 'center',
   },
   
-  shadow: theme.shadows.md,
+  column: {
+    flexDirection: 'column',
+  },
+  
+  shadow: shadows.md,
   
   card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    ...theme.shadows.sm,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    ...shadows.sm,
   },
   
   button: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   
   input: {
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    fontSize: theme.fontSizes.md,
-    backgroundColor: theme.colors.surface,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: fontSizes.md,
+    backgroundColor: colors.surface,
+    color: colors.textPrimary,
   },
   
   text: {
-    fontSize: theme.fontSizes.md,
-    color: theme.colors.textPrimary,
+    fontSize: fontSizes.md,
+    color: colors.textPrimary,
+    lineHeight: lineHeights.normal * fontSizes.md,
   },
   
   textSecondary: {
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textSecondary,
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    lineHeight: lineHeights.normal * fontSizes.sm,
+  },
+  
+  heading1: {
+    fontSize: fontSizes['4xl'],
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+    lineHeight: lineHeights.tight * fontSizes['4xl'],
+  },
+  
+  heading2: {
+    fontSize: fontSizes['3xl'],
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+    lineHeight: lineHeights.tight * fontSizes['3xl'],
+  },
+  
+  heading3: {
+    fontSize: fontSizes['2xl'],
+    fontWeight: fontWeights.semibold,
+    color: colors.textPrimary,
+    lineHeight: lineHeights.snug * fontSizes['2xl'],
   },
   
   title: {
-    fontSize: theme.fontSizes.xl,
-    fontWeight: theme.fontWeights.bold,
-    color: theme.colors.textPrimary,
+    fontSize: fontSizes.xl,
+    fontWeight: fontWeights.bold,
+    color: colors.textPrimary,
+    lineHeight: lineHeights.snug * fontSizes.xl,
   },
   
   subtitle: {
-    fontSize: theme.fontSizes.lg,
-    fontWeight: theme.fontWeights.semibold,
-    color: theme.colors.textPrimary,
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.semibold,
+    color: colors.textPrimary,
+    lineHeight: lineHeights.normal * fontSizes.lg,
+  },
+  
+  body: {
+    fontSize: fontSizes.md,
+    color: colors.textPrimary,
+    lineHeight: lineHeights.relaxed * fontSizes.md,
+  },
+  
+  caption: {
+    fontSize: fontSizes.sm,
+    color: colors.textSecondary,
+    lineHeight: lineHeights.normal * fontSizes.sm,
+  },
+  
+  error: {
+    color: colors.error,
+  },
+  
+  success: {
+    color: colors.success,
+  },
+  
+  warning: {
+    color: colors.warning,
+  },
+  
+  info: {
+    color: colors.info,
   },
 };
 
-export default { theme, commonStyles };
+// Theme object
+export const theme = {
+  colors,
+  fontSizes,
+  fontWeights,
+  lineHeights,
+  spacing,
+  borderRadius,
+  shadows,
+  layout,
+  animations,
+};
+
+// Export everything for convenience
+export {
+  colors,
+  fontSizes,
+  fontWeights,
+  lineHeights,
+  spacing,
+  borderRadius,
+  shadows,
+  layout,
+  animations,
+  commonStyles,
+};
+
+export default theme;

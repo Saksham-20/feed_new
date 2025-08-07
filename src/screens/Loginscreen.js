@@ -18,7 +18,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import { AuthContext } from '../context/AuthContext';
 import { theme } from '../styles/theme';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
   const { login } = useContext(AuthContext);
@@ -27,10 +27,18 @@ const LoginScreen = ({ navigation }) => {
     password: '',
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!formData.email || !formData.password) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
@@ -45,7 +53,7 @@ const LoginScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Login error:', error);
-      Alert.alert('Login Failed', 'Please try again.');
+      Alert.alert('Login Failed', 'Unable to connect to server. Please check your internet connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -64,25 +72,36 @@ const LoginScreen = ({ navigation }) => {
     navigation.replace(screenName);
   };
 
+  const handleForgotPassword = () => {
+    Alert.alert(
+      'Reset Password',
+      'Password reset functionality will be available soon. Please contact support if you need immediate assistance.',
+      [{ text: 'OK' }]
+    );
+  };
+
   return (
     <KeyboardAvoidingView 
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={false}
       >
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logo}>
-              <Icon name="briefcase" size={32} color="#FFFFFF" />
+              <Icon name="zap" size={40} color="#FFFFFF" />
             </View>
-            <Text style={styles.appName}>Business Hub</Text>
-            <Text style={styles.tagline}>Your business management solution</Text>
+            <Text style={styles.appName}>Business Pro</Text>
+            <Text style={styles.tagline}>Professional Business Management</Text>
           </View>
         </View>
 
@@ -97,10 +116,11 @@ const LoginScreen = ({ navigation }) => {
             <Input
               label="Email Address"
               value={formData.email}
-              onChangeText={(text) => setFormData({ ...formData, email: text })}
-              placeholder="Enter your email"
+              onChangeText={(text) => setFormData({ ...formData, email: text.toLowerCase().trim() })}
+              placeholder="Enter your email address"
               keyboardType="email-address"
               autoCapitalize="none"
+              autoComplete="email"
               leftIcon="mail"
               required
             />
@@ -110,10 +130,19 @@ const LoginScreen = ({ navigation }) => {
               value={formData.password}
               onChangeText={(text) => setFormData({ ...formData, password: text })}
               placeholder="Enter your password"
-              secureTextEntry
+              secureTextEntry={!showPassword}
               leftIcon="lock"
+              rightIcon={showPassword ? "eye-off" : "eye"}
+              onRightIconPress={() => setShowPassword(!showPassword)}
               required
             />
+
+            <TouchableOpacity 
+              style={styles.forgotPassword}
+              onPress={handleForgotPassword}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
 
             <Button
               title="Sign In"
@@ -148,12 +177,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    minHeight: height,
   },
   header: {
     backgroundColor: theme.colors.primary,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 40,
     alignItems: 'center',
+    minHeight: height * 0.4,
+    justifyContent: 'center',
   },
   logoContainer: {
     alignItems: 'center',
@@ -168,45 +200,64 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   appName: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 8,
+    textAlign: 'center',
   },
   tagline: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
+    paddingHorizontal: 20,
   },
   formContainer: {
     flex: 1,
     padding: 24,
-    paddingTop: 32,
+    paddingTop: 40,
+    backgroundColor: '#FFFFFF',
   },
   formHeader: {
     marginBottom: 32,
     alignItems: 'center',
   },
   formTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
     color: theme.colors.textPrimary,
     marginBottom: 8,
+    textAlign: 'center',
   },
   formSubtitle: {
     fontSize: 16,
     color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
   form: {
     marginBottom: 32,
   },
+  forgotPassword: {
+    alignSelf: 'flex-end',
+    marginTop: 12,
+    marginBottom: 24,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
   loginButton: {
-    marginTop: 24,
+    height: 52,
+    backgroundColor: theme.colors.primary,
   },
   signupSection: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
   },
   signupText: {
     fontSize: 16,

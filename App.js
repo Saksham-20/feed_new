@@ -1,4 +1,3 @@
-// App.js - Bulletproof Production-Ready Version
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -13,7 +12,7 @@ import {
 } from 'react-native';
 
 // Core dependencies with error handling
-let AsyncStorage, NetInfo, NavigationContainer, createStackNavigator, createBottomTabNavigator;
+let AsyncStorage, NetInfo, NavigationContainer, createStackNavigator;
 let Feather;
 
 try {
@@ -21,10 +20,60 @@ try {
   NetInfo = require('@react-native-community/netinfo').default;
   NavigationContainer = require('@react-navigation/native').NavigationContainer;
   createStackNavigator = require('@react-navigation/stack').createStackNavigator;
-  createBottomTabNavigator = require('@react-navigation/bottom-tabs').createBottomTabNavigator;
   Feather = require('@expo/vector-icons').Feather;
 } catch (error) {
   console.warn('Some dependencies missing, using fallbacks:', error.message);
+}
+
+// Import components - Create fallback components if files don't exist
+let LoginScreen, SignupScreen, DashboardScreen, LoadingSpinner;
+
+try {
+  LoginScreen = require('./src/screens/LoginScreen').default;
+} catch (error) {
+  console.warn('LoginScreen not found, using fallback');
+  LoginScreen = ({ onLogin }) => (
+    <View style={styles.fallbackContainer}>
+      <Text style={styles.fallbackText}>LoginScreen component not found</Text>
+      <Text style={styles.fallbackSubtext}>Please create src/screens/LoginScreen.js</Text>
+    </View>
+  );
+}
+
+try {
+  SignupScreen = require('./src/screens/SignupScreen').default;
+} catch (error) {
+  console.warn('SignupScreen not found, using fallback');
+  SignupScreen = ({ navigation }) => (
+    <View style={styles.fallbackContainer}>
+      <Text style={styles.fallbackText}>SignupScreen component not found</Text>
+      <Text style={styles.fallbackSubtext}>Please create src/screens/SignupScreen.js</Text>
+    </View>
+  );
+}
+
+try {
+  DashboardScreen = require('./src/screens/DashboardScreen').default;
+} catch (error) {
+  console.warn('DashboardScreen not found, using fallback');
+  DashboardScreen = ({ user, onLogout }) => (
+    <View style={styles.fallbackContainer}>
+      <Text style={styles.fallbackText}>Dashboard</Text>
+      <Text style={styles.fallbackSubtext}>Welcome, {user?.fullname || 'User'}!</Text>
+      <Text style={styles.fallbackSubtext}>Role: {user?.role || 'N/A'}</Text>
+      <TouchableOpacity style={styles.fallbackButton} onPress={onLogout}>
+        <Text style={styles.fallbackButtonText}>Logout</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+try {
+  LoadingSpinner = require('./src/components/common/LoadingSpinner').default;
+} catch (error) {
+  console.warn('LoadingSpinner not found, using fallback');
+  LoadingSpinner = ({ overlay, visible = true }) => 
+    visible ? <ActivityIndicator size="large" color={theme.colors.primary} /> : null;
 }
 
 // Safe theme fallback
@@ -48,14 +97,6 @@ const STORAGE_KEYS = {
   ACCESS_TOKEN: 'access_token',
   REFRESH_TOKEN: 'refresh_token',
   USER_DATA: 'user_data',
-};
-
-const USER_ROLES = {
-  ADMIN: 'admin',
-  CLIENT: 'client',
-  SALES_PURCHASE: 'sales_purchase',
-  MARKETING: 'marketing',
-  OFFICE: 'office',
 };
 
 // Error Boundary Component
@@ -132,213 +173,6 @@ const SplashScreen = ({ onComplete }) => {
   );
 };
 
-// Safe Login Screen Component
-const LoginScreen = ({ onLogin }) => {
-  const [selectedRole, setSelectedRole] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const demoUsers = [
-    { id: 1, name: 'Admin User', role: 'admin', email: 'admin@demo.com' },
-    { id: 2, name: 'Client User', role: 'client', email: 'client@demo.com' },
-    { id: 3, name: 'Sales User', role: 'sales_purchase', email: 'sales@demo.com' },
-    { id: 4, name: 'Marketing User', role: 'marketing', email: 'marketing@demo.com' },
-    { id: 5, name: 'Office User', role: 'office', email: 'office@demo.com' },
-  ];
-
-  const handleLogin = async (user) => {
-    setLoading(true);
-    try {
-      if (AsyncStorage) {
-        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
-        await AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, 'demo_token_123');
-      }
-      
-      setTimeout(() => {
-        setLoading(false);
-        onLogin(user);
-      }, 1000);
-    } catch (error) {
-      setLoading(false);
-      Alert.alert('Error', 'Failed to login: ' + error.message);
-    }
-  };
-
-  return (
-    <View style={styles.loginContainer}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-      
-      <View style={styles.loginHeader}>
-        <View style={styles.loginLogo}>
-          {Feather ? (
-            <Feather name="zap" size={32} color="#FFFFFF" />
-          ) : (
-            <Text style={styles.logoEmoji}>⚡</Text>
-          )}
-        </View>
-        <Text style={styles.loginTitle}>Business Pro</Text>
-        <Text style={styles.loginSubtitle}>Select Demo Account</Text>
-      </View>
-
-      <View style={styles.loginForm}>
-        <Text style={styles.sectionTitle}>Choose Your Role:</Text>
-        
-        {demoUsers.map((user) => (
-          <View
-            key={user.id}
-            style={[
-              styles.userCard,
-              selectedRole?.id === user.id && styles.userCardSelected
-            ]}
-            onTouchEnd={() => setSelectedRole(user)}
-          >
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userRole}>{user.role.toUpperCase()}</Text>
-              <Text style={styles.userEmail}>{user.email}</Text>
-            </View>
-            <View style={[
-              styles.radioButton,
-              selectedRole?.id === user.id && styles.radioButtonSelected
-            ]}>
-              {selectedRole?.id === user.id && <Text style={styles.radioCheck}>✓</Text>}
-            </View>
-          </View>
-        ))}
-
-        <View
-          style={[
-            styles.loginButton,
-            (!selectedRole || loading) && styles.loginButtonDisabled
-          ]}
-          onTouchEnd={() => selectedRole && !loading && handleLogin(selectedRole)}
-        >
-          <Text style={styles.loginButtonText}>
-            {loading ? 'Signing In...' : `Login as ${selectedRole?.name || 'Select User'}`}
-          </Text>
-          {loading && <ActivityIndicator size="small" color="#FFFFFF" style={{ marginLeft: 10 }} />}
-        </View>
-      </View>
-    </View>
-  );
-};
-
-// Safe Dashboard Screen Component
-const DashboardScreen = ({ user, onLogout }) => {
-  const [stats, setStats] = useState([]);
-  const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    loadDashboardData();
-  }, [user]);
-
-  const loadDashboardData = () => {
-    const roleStats = {
-      admin: [
-        { title: 'Total Users', value: '156', color: theme.colors.primary },
-        { title: 'Active Orders', value: '43', color: theme.colors.success },
-        { title: 'Revenue', value: '₹2.4L', color: theme.colors.primary },
-        { title: 'Pending', value: '7', color: theme.colors.warning },
-      ],
-      client: [
-        { title: 'My Orders', value: '12', color: theme.colors.primary },
-        { title: 'Pending Bills', value: '3', color: theme.colors.warning },
-        { title: 'Messages', value: '5', color: theme.colors.success },
-        { title: 'Support', value: '2', color: theme.colors.primary },
-      ],
-      sales_purchase: [
-        { title: 'Sales Target', value: '₹5L', color: theme.colors.primary },
-        { title: 'Orders Closed', value: '18', color: theme.colors.success },
-        { title: 'Leads', value: '24', color: theme.colors.primary },
-        { title: 'Follow-ups', value: '9', color: theme.colors.warning },
-      ],
-      marketing: [
-        { title: 'Campaigns', value: '6', color: theme.colors.primary },
-        { title: 'Leads Generated', value: '87', color: theme.colors.success },
-        { title: 'Conversion Rate', value: '12%', color: theme.colors.primary },
-        { title: 'Active Ads', value: '4', color: theme.colors.secondary },
-      ],
-      office: [
-        { title: 'Documents', value: '234', color: theme.colors.primary },
-        { title: 'Tasks', value: '16', color: theme.colors.success },
-        { title: 'Meetings', value: '8', color: theme.colors.secondary },
-        { title: 'Reports', value: '12', color: theme.colors.primary },
-      ],
-    };
-
-    setStats(roleStats[user.role] || roleStats.client);
-  };
-
-  const handleLogout = async () => {
-    try {
-      if (AsyncStorage) {
-        await AsyncStorage.multiRemove([
-          STORAGE_KEYS.ACCESS_TOKEN,
-          STORAGE_KEYS.USER_DATA,
-          STORAGE_KEYS.REFRESH_TOKEN,
-        ]);
-      }
-      onLogout();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to logout: ' + error.message);
-    }
-  };
-
-  return (
-    <View style={styles.dashboardContainer}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      <View style={styles.dashboardHeader}>
-        <View>
-          <Text style={styles.greeting}>Welcome back!</Text>
-          <Text style={styles.roleText}>{user.name}</Text>
-          <Text style={styles.emailText}>{user.email}</Text>
-        </View>
-        <View onTouchEnd={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </View>
-      </View>
-
-      <View style={styles.statsContainer}>
-        <Text style={styles.sectionTitle}>Dashboard Overview</Text>
-        <View style={styles.statsGrid}>
-          {stats.map((stat, index) => (
-            <View key={index} style={styles.statCard}>
-              <Text style={[styles.statValue, { color: stat.color }]}>
-                {stat.value}
-              </Text>
-              <Text style={styles.statTitle}>{stat.title}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.activityContainer}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
-        <View style={styles.activityCard}>
-          <Text style={styles.activityText}>✅ App initialized successfully</Text>
-          <Text style={styles.activityTime}>Just now</Text>
-        </View>
-        <View style={styles.activityCard}>
-          <Text style={styles.activityText}>🚀 Dashboard loaded</Text>
-          <Text style={styles.activityTime}>1 minute ago</Text>
-        </View>
-        <View style={styles.activityCard}>
-          <Text style={styles.activityText}>👤 User logged in as {user.role}</Text>
-          <Text style={styles.activityTime}>2 minutes ago</Text>
-        </View>
-      </View>
-    </View>
-  );
-};
-
-// Safe Navigation Components
-const createSafeNavigator = () => {
-  if (!NavigationContainer || !createStackNavigator) {
-    return null;
-  }
-  return createStackNavigator();
-};
-
 // Main App Component
 const App = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -348,61 +182,51 @@ const App = () => {
 
   useEffect(() => {
     initializeApp();
-    setupAppStateListener();
-    setupNetworkListener();
-    setupBackHandler();
-    
-    return cleanup;
-  }, []);
+    const cleanupNetwork = setupNetworkListener();
+    const cleanupBackHandler = setupBackHandler();
 
-  const initializeApp = async () => {
-    try {
-      console.log('🚀 Initializing app...');
-      
-      // Check authentication
-      if (AsyncStorage) {
-        const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
-        const token = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-        
-        if (userData && token) {
-          const parsedUser = JSON.parse(userData);
-          setUser(parsedUser);
-          console.log('✅ User authenticated:', parsedUser.role);
-        } else {
-          console.log('🔓 No authentication found');
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ Initialization error:', error);
-    } finally {
-      // Always complete loading after 2 seconds
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 2000);
-    }
-  };
-
-  const setupAppStateListener = () => {
     const handleAppStateChange = (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('📱 App has come to the foreground');
-        // Refresh user data if authenticated
-        if (user) {
-          initializeApp();
-        }
+        console.log('📱 App has come to the foreground!');
       }
       appState.current = nextAppState;
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription?.remove();
+
+    return () => {
+      cleanupNetwork();
+      cleanupBackHandler();
+      subscription?.remove();
+      cleanup();
+    };
+  }, []);
+
+  const initializeApp = async () => {
+    console.log('🚀 Initializing Business Pro App');
+    try {
+      // Check for existing user session
+      if (AsyncStorage) {
+        const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+        const token = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+        
+        if (userData && token) {
+          setUser(JSON.parse(userData));
+          console.log('👤 User session restored');
+        }
+      }
+    } catch (error) {
+      console.error('Initialization error:', error);
+    } finally {
+      setTimeout(() => setIsLoading(false), 2000);
+    }
   };
 
   const setupNetworkListener = () => {
     if (NetInfo) {
       const unsubscribe = NetInfo.addEventListener(state => {
-        console.log('🌐 Network state:', state.isConnected ? 'online' : 'offline');
+        console.log('🌐 Connection type:', state.type);
+        console.log('🌐 Is connected?', state.isConnected);
         setConnectionStatus(state.isConnected ? 'online' : 'offline');
       });
       return unsubscribe;
@@ -430,18 +254,35 @@ const App = () => {
   };
 
   const cleanup = () => {
-    // Cleanup any subscriptions or timers
     console.log('🧹 Cleaning up app resources');
   };
 
-  const handleLogin = (userData) => {
+  const handleLogin = async (userData) => {
     console.log('👤 User logged in:', userData.role);
-    setUser(userData);
+    try {
+      if (AsyncStorage) {
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+      }
+      setUser(userData);
+    } catch (error) {
+      console.error('Error saving user data:', error);
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     console.log('👋 User logged out');
-    setUser(null);
+    try {
+      if (AsyncStorage) {
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.USER_DATA,
+          STORAGE_KEYS.ACCESS_TOKEN,
+          STORAGE_KEYS.REFRESH_TOKEN,
+        ]);
+      }
+      setUser(null);
+    } catch (error) {
+      console.error('Error clearing user data:', error);
+    }
   };
 
   // Show loading screen
@@ -505,9 +346,12 @@ const App = () => {
                 {() => <DashboardScreen user={user} onLogout={handleLogout} />}
               </Stack.Screen>
             ) : (
-              <Stack.Screen name="Login">
-                {() => <LoginScreen onLogin={handleLogin} />}
-              </Stack.Screen>
+              <>
+                <Stack.Screen name="Login">
+                  {() => <LoginScreen onLogin={handleLogin} />}
+                </Stack.Screen>
+                <Stack.Screen name="Signup" component={SignupScreen} />
+              </>
             )}
           </Stack.Navigator>
         </View>
@@ -584,7 +428,6 @@ const styles = StyleSheet.create({
   },
   logoEmoji: {
     fontSize: 40,
-    color: '#FFFFFF',
   },
   appName: {
     fontSize: 32,
@@ -595,7 +438,7 @@ const styles = StyleSheet.create({
   },
   appTagline: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
   },
   loadingContainer: {
@@ -604,229 +447,49 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#FFFFFF',
-    marginTop: 16,
-    fontWeight: '500',
+    marginTop: 12,
   },
   versionText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.7)',
   },
 
-  // Login Screen Styles
-  loginContainer: {
+  fallbackContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  loginHeader: {
-    backgroundColor: theme.colors.primary,
-    paddingTop: 60,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  loginLogo: {
-    width: 80,
-    height: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  loginTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  loginSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  loginForm: {
-    flex: 1,
     padding: 24,
-    paddingTop: 32,
+    backgroundColor: theme.colors.background,
   },
-  sectionTitle: {
+  fallbackText: {
     fontSize: 18,
     fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: 20,
+    marginBottom: 8,
     textAlign: 'center',
   },
-  userCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: theme.colors.border,
-  },
-  userCardSelected: {
-    borderColor: theme.colors.primary,
-    backgroundColor: '#F0F9FF',
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  userRole: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    backgroundColor: theme.colors.background,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-    marginBottom: 4,
-  },
-  userEmail: {
+  fallbackSubtext: {
     fontSize: 14,
     color: theme.colors.textSecondary,
-  },
-  radioButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: theme.colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioButtonSelected: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary,
-  },
-  radioCheck: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  loginButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-    flexDirection: 'row',
-  },
-  loginButtonDisabled: {
-    opacity: 0.6,
-  },
-  loginButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-
-  // Dashboard Styles
-  dashboardContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  dashboardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  roleText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginBottom: 2,
-  },
-  emailText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  logoutButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: theme.colors.error,
-    borderRadius: 8,
-  },
-  logoutText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  statsContainer: {
-    padding: 20,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  statTitle: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
     textAlign: 'center',
-    fontWeight: '500',
   },
-  activityContainer: {
-    padding: 20,
-    paddingTop: 0,
-  },
-  activityCard: {
-    backgroundColor: '#FFFFFF',
+  fallbackButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     borderRadius: 8,
-    padding: 16,
-    marginBottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginTop: 16,
   },
-  activityText: {
+  fallbackButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
-    color: theme.colors.textPrimary,
-    flex: 1,
-  },
-  activityTime: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
+    fontWeight: '600',
   },
 
-  // Connection Status
+  // Offline Bar
   offlineBar: {
-    backgroundColor: theme.colors.warning,
+    backgroundColor: theme.colors.error,
     paddingVertical: 8,
     paddingHorizontal: 16,
     alignItems: 'center',
