@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   BackHandler,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 
 // Core dependencies with error handling
@@ -32,7 +33,7 @@ try {
   LoginScreen = require('./src/screens/LoginScreen').default;
 } catch (error) {
   console.warn('LoginScreen not found, using fallback');
-  LoginScreen = ({ onLogin }) => (
+  LoginScreen = ({ navigation, onLogin }) => (
     <View style={styles.fallbackContainer}>
       <Text style={styles.fallbackText}>LoginScreen component not found</Text>
       <Text style={styles.fallbackSubtext}>Please create src/screens/LoginScreen.js</Text>
@@ -73,30 +74,28 @@ try {
 } catch (error) {
   console.warn('LoadingSpinner not found, using fallback');
   LoadingSpinner = ({ overlay, visible = true }) => 
-    visible ? <ActivityIndicator size="large" color={theme.colors.primary} /> : null;
+    visible ? (
+      <View style={[styles.loadingContainer, overlay && styles.loadingOverlay]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    ) : null;
 }
 
-// Safe theme fallback
+// Theme fallback
 const theme = {
   colors: {
     primary: '#007AFF',
-    secondary: '#FF6B35',
-    background: '#F8F9FA',
-    surface: '#FFFFFF',
-    textPrimary: '#1F2937',
-    textSecondary: '#6B7280',
-    success: '#10B981',
-    warning: '#F59E0B',
-    error: '#EF4444',
-    border: '#E5E7EB',
+    background: '#FFFFFF',
+    textPrimary: '#000000',
+    textSecondary: '#666666',
   }
 };
 
-// Safe constants
+// Storage keys
 const STORAGE_KEYS = {
-  ACCESS_TOKEN: 'access_token',
-  REFRESH_TOKEN: 'refresh_token',
-  USER_DATA: 'user_data',
+  USER_DATA: '@BusinessPro:userData',
+  ACCESS_TOKEN: '@BusinessPro:accessToken',
+  REFRESH_TOKEN: '@BusinessPro:refreshToken',
 };
 
 // Error Boundary Component
@@ -111,7 +110,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error('🚨 App Error:', error, errorInfo);
   }
 
   render() {
@@ -120,113 +119,94 @@ class ErrorBoundary extends React.Component {
         <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>Something went wrong</Text>
           <Text style={styles.errorText}>
-            The app encountered an error. Please restart the app.
+            The app encountered an unexpected error. Please restart the application.
           </Text>
-          <Text 
-            style={styles.retryButton}
+          <TouchableOpacity 
+            style={styles.restartButton}
             onPress={() => this.setState({ hasError: false, error: null })}
           >
-            Try Again
-          </Text>
+            <Text style={styles.restartButtonText}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       );
     }
-
     return this.props.children;
   }
 }
 
-// Safe Splash Screen Component
+// Splash Screen Component
 const SplashScreen = ({ onComplete }) => {
   useEffect(() => {
-    const timer = setTimeout(() => {
-      onComplete && onComplete();
-    }, 2000);
-
+    const timer = setTimeout(onComplete, 2000);
     return () => clearTimeout(timer);
   }, [onComplete]);
 
   return (
     <View style={styles.splashContainer}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-      <View style={styles.splashContent}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logo}>
-            {Feather ? (
-              <Feather name="zap" size={40} color="#FFFFFF" />
-            ) : (
-              <Text style={styles.logoEmoji}>⚡</Text>
-            )}
-          </View>
-          <Text style={styles.appName}>Business Pro</Text>
-          <Text style={styles.appTagline}>Professional Business Management</Text>
-        </View>
-        
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-        
-        <Text style={styles.versionText}>Version 1.0.0</Text>
+      <View style={styles.logoContainer}>
+        <Text style={styles.logoText}>⚡</Text>
+        <Text style={styles.appName}>Business Pro</Text>
+        <Text style={styles.appTagline}>Professional Business Management</Text>
       </View>
+      <LoadingSpinner />
     </View>
   );
 };
 
-// Main App Component
-const App = () => {
-  const [isLoading, setIsLoading] = useState(true);
+export default function App() {
   const [user, setUser] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState('unknown');
+  const [isLoading, setIsLoading] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState('checking');
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     initializeApp();
-    const cleanupNetwork = setupNetworkListener();
-    const cleanupBackHandler = setupBackHandler();
-
-    const handleAppStateChange = (nextAppState) => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('📱 App has come to the foreground!');
-      }
-      appState.current = nextAppState;
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    const networkCleanup = setupNetworkListener();
+    const backHandlerCleanup = setupBackHandler();
+    const appStateCleanup = setupAppStateListener();
 
     return () => {
-      cleanupNetwork();
-      cleanupBackHandler();
-      subscription?.remove();
+      networkCleanup();
+      backHandlerCleanup();
+      appStateCleanup();
       cleanup();
     };
   }, []);
 
   const initializeApp = async () => {
-    console.log('🚀 Initializing Business Pro App');
     try {
-      // Check for existing user session
+      console.log('🚀 Initializing Business Pro App');
+      
       if (AsyncStorage) {
         const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
-        const token = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-        
-        if (userData && token) {
-          setUser(JSON.parse(userData));
-          console.log('👤 User session restored');
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          console.log('👤 Restored user session:', parsedUser.role);
+          setUser(parsedUser);
         }
       }
     } catch (error) {
-      console.error('Initialization error:', error);
-    } finally {
-      setTimeout(() => setIsLoading(false), 2000);
+      console.error('❌ App initialization error:', error);
     }
+  };
+
+  const setupAppStateListener = () => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('📱 App has come to the foreground');
+      } else if (nextAppState.match(/inactive|background/)) {
+        console.log('📱 App has gone to the background');
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => subscription?.remove();
   };
 
   const setupNetworkListener = () => {
     if (NetInfo) {
       const unsubscribe = NetInfo.addEventListener(state => {
-        console.log('🌐 Connection type:', state.type);
-        console.log('🌐 Is connected?', state.isConnected);
+        console.log('🌐 Network status:', state.type, state.isConnected);
         setConnectionStatus(state.isConnected ? 'online' : 'offline');
       });
       return unsubscribe;
@@ -348,7 +328,7 @@ const App = () => {
             ) : (
               <>
                 <Stack.Screen name="Login">
-                  {() => <LoginScreen onLogin={handleLogin} />}
+                  {({ navigation }) => <LoginScreen navigation={navigation} onLogin={handleLogin} />}
                 </Stack.Screen>
                 <Stack.Screen name="Signup" component={SignupScreen} />
               </>
@@ -358,7 +338,7 @@ const App = () => {
       </NavigationContainer>
     </ErrorBoundary>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -388,98 +368,72 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 22,
   },
-  retryButton: {
-    fontSize: 16,
-    color: theme.colors.primary,
-    fontWeight: '600',
-    padding: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
+  restartButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     borderRadius: 8,
+  },
+  restartButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 
   // Splash Screen Styles
   splashContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: theme.colors.primary,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 80,
-  },
-  splashContent: {
-    flex: 1,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: 40,
   },
   logoContainer: {
     alignItems: 'center',
-    marginTop: 60,
+    marginBottom: 50,
   },
-  logo: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  logoEmoji: {
-    fontSize: 40,
+  logoText: {
+    fontSize: 60,
+    marginBottom: 16,
   },
   appName: {
-    fontSize: 32,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 8,
-    textAlign: 'center',
   },
   appTagline: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
   },
-  loadingContainer: {
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    marginTop: 12,
-  },
-  versionText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
 
+  // Fallback Component Styles
   fallbackContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#F5F5F5',
   },
   fallbackText: {
     fontSize: 18,
     fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: 8,
+    marginBottom: 12,
     textAlign: 'center',
   },
   fallbackSubtext: {
     fontSize: 14,
     color: theme.colors.textSecondary,
-    marginBottom: 16,
     textAlign: 'center',
+    marginBottom: 8,
   },
   fallbackButton: {
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginTop: 20,
   },
   fallbackButtonText: {
     color: '#FFFFFF',
@@ -487,11 +441,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Offline Bar
+  // Loading Spinner Styles
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+
+  // Connection Status Styles
   offlineBar: {
-    backgroundColor: theme.colors.error,
+    backgroundColor: '#FF3B30',
     paddingVertical: 8,
-    paddingHorizontal: 16,
     alignItems: 'center',
   },
   offlineText: {
@@ -500,5 +464,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-
-export default App;

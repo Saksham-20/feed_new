@@ -23,8 +23,8 @@ const { width, height } = Dimensions.get('window');
 const SignupScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
     fullname: '',
-    email: '',
     phone: '',
+    email: '',
     role: 'client',
     password: '',
     confirmPassword: '',
@@ -83,56 +83,71 @@ const SignupScreen = ({ navigation }) => {
   const selectedUserType = userTypes.find(type => type.key === formData.role);
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const validateForm = () => {
-    // Required fields validation
-    const requiredFields = ['fullname', 'email', 'phone', 'password', 'confirmPassword'];
-    
-    if (selectedUserType?.requiresApproval) {
-      requiredFields.push('department', 'employeeId');
+    const { fullname, phone, email, password, confirmPassword } = formData;
+
+    if (!fullname.trim()) {
+      Alert.alert('Validation Error', 'Please enter your full name');
+      return false;
     }
 
-    for (const field of requiredFields) {
-      if (!formData[field]?.trim()) {
-        const fieldNames = {
-          fullname: 'Full name',
-          email: 'Email address',
-          phone: 'Phone number',
-          password: 'Password',
-          confirmPassword: 'Confirm password',
-          department: 'Department',
-          employeeId: 'Employee ID'
-        };
-        Alert.alert('Error', `${fieldNames[field]} is required`);
-        return false;
-      }
+    if (!phone.trim()) {
+      Alert.alert('Validation Error', 'Please enter your phone number');
+      return false;
+    }
+
+    // Phone number validation
+    const phoneRegex = /^[+]?[\d\s\-\(\)]+$/;
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    
+    if (!phoneRegex.test(phone) || cleanPhone.length < 10) {
+      Alert.alert('Validation Error', 'Please enter a valid phone number');
+      return false;
+    }
+
+    if (!email.trim()) {
+      Alert.alert('Validation Error', 'Please enter your email address');
+      return false;
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+    if (!emailRegex.test(email)) {
+      Alert.alert('Validation Error', 'Please enter a valid email address');
       return false;
     }
 
-    // Phone validation (Indian format)
-    const phoneRegex = /^(?:\+91|91)?[6-9]\d{9}$/;
-    if (!phoneRegex.test(formData.phone.replace(/\s+/g, ''))) {
-      Alert.alert('Error', 'Please enter a valid phone number');
+    if (!password) {
+      Alert.alert('Validation Error', 'Please enter a password');
       return false;
     }
 
-    // Password validation
-    if (formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+    if (password.length < 6) {
+      Alert.alert('Validation Error', 'Password must be at least 6 characters long');
       return false;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+    if (password !== confirmPassword) {
+      Alert.alert('Validation Error', 'Passwords do not match');
       return false;
+    }
+
+    // Employee fields validation for non-client roles
+    if (formData.role !== 'client') {
+      if (!formData.department.trim()) {
+        Alert.alert('Validation Error', 'Please enter your department');
+        return false;
+      }
+      if (!formData.employeeId.trim()) {
+        Alert.alert('Validation Error', 'Please enter your employee ID');
+        return false;
+      }
     }
 
     return true;
@@ -145,27 +160,28 @@ const SignupScreen = ({ navigation }) => {
     try {
       const signupData = {
         fullname: formData.fullname.trim(),
-        email: formData.email.toLowerCase().trim(),
-        phone: formData.phone.replace(/\s+/g, ''),
+        phone: formData.phone.trim(),
+        email: formData.email.trim().toLowerCase(),
         role: formData.role,
         password: formData.password,
       };
 
-      if (selectedUserType?.requiresApproval) {
+      // Add employee-specific fields if not a client
+      if (formData.role !== 'client') {
         signupData.department = formData.department.trim();
-        signupData.employee_id = formData.employeeId.trim();
+        signupData.employeeId = formData.employeeId.trim();
       }
 
-      const response = await api.post('/api/auth/register', signupData);
+      const response = await api.post('/auth/register', signupData);
 
       if (response.data.success) {
         if (selectedUserType?.requiresApproval) {
           Alert.alert(
-            'Registration Successful!',
+            'Registration Submitted!',
             'Your account has been created and is pending admin approval. You will be notified once your account is approved.',
             [{ 
               text: 'OK', 
-              onPress: () => navigation.navigate('LoginScreen')
+              onPress: () => navigation.navigate('Login')
             }]
           );
         } else {
@@ -174,7 +190,7 @@ const SignupScreen = ({ navigation }) => {
             'Your account has been created successfully. You can now sign in.',
             [{ 
               text: 'OK', 
-              onPress: () => navigation.navigate('LoginScreen')
+              onPress: () => navigation.navigate('Login')
             }]
           );
         }
@@ -185,7 +201,7 @@ const SignupScreen = ({ navigation }) => {
       console.error('Signup error:', error);
       
       if (error.response?.status === 409) {
-        Alert.alert('Registration Failed', 'An account with this email or phone number already exists');
+        Alert.alert('Registration Failed', 'An account with this phone number or email already exists');
       } else if (error.response?.status === 400) {
         Alert.alert('Registration Failed', error.response.data.message || 'Please check your information and try again');
       } else {
@@ -221,21 +237,21 @@ const SignupScreen = ({ navigation }) => {
 
       {showUserTypes && (
         <View style={styles.userTypeOptions}>
-          {userTypes.map(type => (
+          {userTypes.map((type) => (
             <TouchableOpacity
               key={type.key}
               style={[
                 styles.userTypeOption,
-                formData.role === type.key && styles.userTypeOptionSelected
+                formData.role === type.key && styles.selectedOption,
               ]}
               onPress={() => {
                 handleInputChange('role', type.key);
                 setShowUserTypes(false);
               }}
             >
-              <View style={styles.userTypeOptionInfo}>
+              <View style={styles.userTypeInfo}>
                 <View style={[styles.userTypeIcon, { backgroundColor: type.color }]}>
-                  <Icon name={type.icon} size={20} color="#FFFFFF" />
+                  <Icon name={type.icon} size={18} color="#FFFFFF" />
                 </View>
                 <View style={styles.userTypeText}>
                   <Text style={styles.userTypeTitle}>{type.label}</Text>
@@ -245,9 +261,6 @@ const SignupScreen = ({ navigation }) => {
                   )}
                 </View>
               </View>
-              {formData.role === type.key && (
-                <Icon name="check" size={20} color={theme.colors.primary} />
-              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -255,11 +268,47 @@ const SignupScreen = ({ navigation }) => {
     </View>
   );
 
+  const renderEmployeeFields = () => {
+    if (formData.role === 'client') return null;
+
+    return (
+      <>
+        <Input
+          label="Department"
+          value={formData.department}
+          onChangeText={(text) => handleInputChange('department', text)}
+          placeholder="Enter your department"
+          leftIcon="building"
+          autoCapitalize="words"
+          required
+        />
+
+        <Input
+          label="Employee ID"
+          value={formData.employeeId}
+          onChangeText={(text) => handleInputChange('employeeId', text)}
+          placeholder="Enter your employee ID"
+          leftIcon="id-card"
+          autoCapitalize="characters"
+          required
+        />
+      </>
+    );
+  };
+
+  const handleLoginNavigation = () => {
+    if (navigation) {
+      navigation.navigate('Login');
+    } else {
+      Alert.alert('Navigation', 'Please restart the app to access login');
+    }
+  };
+
   return (
     <KeyboardAvoidingView 
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -100}
     >
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       
@@ -267,25 +316,24 @@ const SignupScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        bounces={false}
       >
-        {/* Header Section */}
+        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
+          <TouchableOpacity 
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation?.goBack()}
           >
             <Icon name="arrow-left" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Create Account</Text>
-            <Text style={styles.headerSubtitle}>Join our business platform</Text>
+            <Text style={styles.headerSubtitle}>Join Business Pro today</Text>
           </View>
         </View>
 
-        {/* Signup Form */}
-        <View style={styles.formContainer}>
+        {/* Content */}
+        <View style={styles.content}>
           <Input
             label="Full Name"
             value={formData.fullname}
@@ -297,58 +345,36 @@ const SignupScreen = ({ navigation }) => {
           />
 
           <Input
-            label="Email Address"
-            value={formData.email}
-            onChangeText={(text) => handleInputChange('email', text.toLowerCase().trim())}
-            placeholder="Enter your email address"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            leftIcon="mail"
-            required
-          />
-
-          <Input
             label="Phone Number"
             value={formData.phone}
             onChangeText={(text) => handleInputChange('phone', text)}
             placeholder="Enter your phone number"
             keyboardType="phone-pad"
             leftIcon="phone"
+            autoCapitalize="none"
+            required
+          />
+
+          <Input
+            label="Email Address"
+            value={formData.email}
+            onChangeText={(text) => handleInputChange('email', text)}
+            placeholder="Enter your email address"
+            keyboardType="email-address"
+            leftIcon="mail"
+            autoCapitalize="none"
             required
           />
 
           {renderUserTypeSelector()}
 
-          {selectedUserType?.requiresApproval && (
-            <>
-              <Input
-                label="Department"
-                value={formData.department}
-                onChangeText={(text) => handleInputChange('department', text)}
-                placeholder="Enter your department"
-                leftIcon="briefcase"
-                autoCapitalize="words"
-                required
-              />
-
-              <Input
-                label="Employee ID"
-                value={formData.employeeId}
-                onChangeText={(text) => handleInputChange('employeeId', text)}
-                placeholder="Enter your employee ID"
-                leftIcon="hash"
-                autoCapitalize="none"
-                required
-              />
-            </>
-          )}
+          {renderEmployeeFields()}
 
           <Input
             label="Password"
             value={formData.password}
             onChangeText={(text) => handleInputChange('password', text)}
-            placeholder="Enter your password (min. 6 characters)"
+            placeholder="Enter your password (minimum 6 characters)"
             secureTextEntry={!showPassword}
             leftIcon="lock"
             rightIcon={showPassword ? "eye-off" : "eye"}
@@ -379,7 +405,7 @@ const SignupScreen = ({ navigation }) => {
           <View style={styles.loginSection}>
             <Text style={styles.loginText}>Already have an account?</Text>
             <TouchableOpacity
-              onPress={() => navigation.navigate('LoginScreen')}
+              onPress={handleLoginNavigation}
               disabled={loading}
             >
               <Text style={styles.loginLink}>Sign In</Text>
@@ -405,38 +431,36 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 30,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    alignSelf: 'flex-start',
     marginBottom: 20,
+    padding: 8,
   },
   headerContent: {
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 8,
-    textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
   },
-  formContainer: {
-    flex: 1,
-    padding: 24,
+  content: {
+    paddingHorizontal: 24,
     paddingTop: 32,
-    backgroundColor: '#FFFFFF',
+    paddingBottom: 24,
   },
+
+  // User Type Selector Styles
   userTypeContainer: {
     marginBottom: 20,
   },
@@ -447,19 +471,29 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   selectedUserType: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: '#F8F9FA',
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  userTypeOptions: {
+    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: '#F8F9FA',
+    overflow: 'hidden',
+  },
+  userTypeOption: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
+  },
+  selectedOption: {
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
   },
   userTypeInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   userTypeIcon: {
     width: 40,
@@ -467,7 +501,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   userTypeText: {
     flex: 1,
@@ -476,46 +510,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   userTypeDesc: {
-    fontSize: 12,
+    fontSize: 14,
     color: theme.colors.textSecondary,
-    lineHeight: 16,
+    lineHeight: 20,
   },
   approvalNote: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FF9500',
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: 4,
   },
-  userTypeOptions: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginTop: 8,
-    overflow: 'hidden',
-  },
-  userTypeOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  userTypeOptionSelected: {
-    backgroundColor: '#F0F8FF',
-  },
-  userTypeOptionInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
+
+  // Button Styles
   signupButton: {
-    height: 52,
-    backgroundColor: theme.colors.primary,
     marginTop: 24,
     marginBottom: 20,
   },
@@ -523,9 +533,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    paddingVertical: 16,
   },
   loginText: {
     fontSize: 16,
