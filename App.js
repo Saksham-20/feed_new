@@ -54,7 +54,7 @@ let AdminScreen, ClientScreen, MarketingEmployeeScreen, SalesPurchaseEmployeeScr
 
 // Main screens
 try {
-  LoginScreen = require('./src/screens/LoginScreen').default;
+  LoginScreen = require('./src/screens/Loginscreen').default;
 } catch (error) {
   console.warn('LoginScreen not found, using fallback');
   LoginScreen = ({ navigation, onLogin }) => (
@@ -114,13 +114,13 @@ try {
 
 // Role-specific screens
 try {
-  AdminScreen = require('./src/screens/AdminScreen').default;
+  AdminScreen = require('./src/screens/enhanced/AdminScreen').default;
 } catch (error) {
   console.warn('AdminScreen not found');
 }
 
 try {
-  ClientScreen = require('./src/screens/ClientScreen').default;
+  ClientScreen = require('./src/screens/enhanced/ClientScreen').default;
 } catch (error) {
   console.warn('ClientScreen not found');
 }
