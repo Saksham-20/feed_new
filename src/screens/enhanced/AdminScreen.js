@@ -1,72 +1,206 @@
-// screens/enhanced/AdminScreen.js - Comprehensive admin dashboard
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  RefreshControl,
   TouchableOpacity,
+  RefreshControl,
+  Alert,
+  Dimensions,
+  StatusBar,
   Modal,
   FlatList,
-  Alert,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import Button from '../../components/common/Button';
-import Card from '../../components/common/Card.js';
-import Input from '../../components/common/Input';
-import FeedbackThread from '../../components/business/FeedbackThread';
-import Icon from 'react-native-vector-icons/Feather';
 
-const AdminScreen = ({ navigation }) => {
+// Try to import dependencies with fallbacks
+let Icon;
+try {
+  Icon = require('react-native-vector-icons/Feather').default;
+} catch (error) {
+  console.warn('Vector icons not available, using fallback');
+  Icon = ({ name, size, color, style }) => (
+    <View style={[{ width: size, height: size, backgroundColor: color, borderRadius: size/2 }, style]} />
+  );
+}
+
+const { width } = Dimensions.get('window');
+
+// Theme
+const theme = {
+  colors: {
+    primary: '#007AFF',
+    secondary: '#FF6B35',
+    success: '#10B981',
+    warning: '#F59E0B',
+    error: '#EF4444',
+    textPrimary: '#1F2937',
+    textSecondary: '#6B7280',
+    surface: '#FFFFFF',
+    background: '#F9FAFB',
+    border: '#E5E7EB',
+  }
+};
+
+// Simple Card Component
+const Card = ({ children, style }) => (
+  <View style={[styles.card, style]}>
+    {children}
+  </View>
+);
+
+// Simple Button Component
+const Button = ({ title, onPress, variant = 'primary', size = 'small', style }) => (
+  <TouchableOpacity
+    style={[
+      styles.button,
+      variant === 'outline' ? styles.buttonOutline : styles.buttonPrimary,
+      size === 'small' ? styles.buttonSmall : styles.buttonMedium,
+      style
+    ]}
+    onPress={onPress}
+  >
+    <Text style={[
+      styles.buttonText,
+      variant === 'outline' ? styles.buttonTextOutline : styles.buttonTextPrimary
+    ]}>
+      {title}
+    </Text>
+  </TouchableOpacity>
+);
+
+const AdminScreen = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   
-  // Dashboard data
+  // Modals
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  
+  // Dashboard data state
   const [dashboardData, setDashboardData] = useState({
-    users: { byRole: [], pendingApprovals: 0, totalUsers: 0 },
-    orders: { byStatus: [], recent: [], totalOrders: 0, totalValue: 0 },
-    feedback: { byStatus: [], totalThreads: 0 },
-    revenue: { total_revenue: 0, total_bills: 0 }
+    users: { 
+      totalUsers: 248,
+      pendingApprovals: 12,
+      activeUsers: 195,
+      newThisWeek: 8,
+      byRole: [
+        { role: 'client', count: 180, color: theme.colors.primary },
+        { role: 'sales_purchase', count: 25, color: theme.colors.success },
+        { role: 'marketing', count: 15, color: theme.colors.warning },
+        { role: 'office', count: 18, color: theme.colors.secondary },
+        { role: 'admin', count: 10, color: theme.colors.error }
+      ]
+    },
+    orders: { 
+      totalOrders: 1456,
+      thisMonth: 156,
+      pendingOrders: 23,
+      completedOrders: 1289,
+      totalValue: 2456000,
+      recent: [
+        { id: 'ORD-2024-156', customer: 'ABC Corp', amount: 45000, status: 'pending' },
+        { id: 'ORD-2024-155', customer: 'XYZ Ltd', amount: 32000, status: 'completed' },
+        { id: 'ORD-2024-154', customer: 'Tech Solutions', amount: 78000, status: 'processing' }
+      ]
+    },
+    feedback: { 
+      totalThreads: 89,
+      openTickets: 23,
+      resolvedThisWeek: 15,
+      avgResponseTime: '2.5 hours',
+      byStatus: [
+        { status: 'open', count: 23, color: theme.colors.error },
+        { status: 'in-progress', count: 12, color: theme.colors.warning },
+        { status: 'resolved', count: 54, color: theme.colors.success }
+      ]
+    },
+    revenue: { 
+      total_revenue: 2456000,
+      thisMonth: 345000,
+      growth: 15.8,
+      total_bills: 89
+    },
+    systemHealth: {
+      uptime: '99.8%',
+      activeConnections: 156,
+      serverLoad: '45%',
+      storageUsed: '67%'
+    }
   });
 
   // Users data
-  const [users, setUsers] = useState([]);
-  const [pendingApprovals, setPendingApprovals] = useState([]);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [showUserModal, setShowUserModal] = useState(false);
+  const [pendingUsers, setPendingUsers] = useState([
+    {
+      user_id: 'U001',
+      fullname: 'John Smith',
+      email: 'john.smith@company.com',
+      phone: '+1234567890',
+      role: 'sales_purchase',
+      department: 'Sales',
+      employee_id: 'EMP-001',
+      created_at: '2024-01-15T10:30:00Z',
+      status: 'pending'
+    },
+    {
+      user_id: 'U002',
+      fullname: 'Sarah Johnson',
+      email: 'sarah.j@company.com',
+      phone: '+1234567891',
+      role: 'marketing',
+      department: 'Marketing',
+      employee_id: 'EMP-002',
+      created_at: '2024-01-14T14:20:00Z',
+      status: 'pending'
+    },
+    {
+      user_id: 'U003',
+      fullname: 'Mike Wilson',
+      email: 'mike.w@company.com',
+      phone: '+1234567892',
+      role: 'office',
+      department: 'Administration',
+      employee_id: 'EMP-003',
+      created_at: '2024-01-13T09:15:00Z',
+      status: 'pending'
+    }
+  ]);
 
-  // Feedback data
-  const [feedbackThreads, setFeedbackThreads] = useState([]);
-  const [selectedThread, setSelectedThread] = useState(null);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-
-  // Filters and search
-  const [userFilter, setUserFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const tabs = [
+    { key: 'dashboard', label: 'Overview', icon: 'home' },
+    { key: 'users', label: 'Users', icon: 'users' },
+    { key: 'orders', label: 'Orders', icon: 'shopping-cart' },
+    { key: 'feedback', label: 'Support', icon: 'message-circle' },
+  ];
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'users') fetchUsers();
-    if (activeTab === 'feedback') fetchFeedback();
-  }, [activeTab]);
-
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem('accessToken');
-      const response = await axios.get(
-        'http://192.168.1.22:3000/api/admin/dashboard/overview',
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Update with fresh mock data
+      setDashboardData(prevData => ({
+        ...prevData,
+        users: {
+          ...prevData.users,
+          totalUsers: 248 + Math.floor(Math.random() * 10),
+          newThisWeek: 8 + Math.floor(Math.random() * 5),
+        },
+        orders: {
+          ...prevData.orders,
+          thisMonth: 156 + Math.floor(Math.random() * 20),
+          pendingOrders: 23 + Math.floor(Math.random() * 10),
+        }
+      }));
 
-      if (response.data.success) {
-        setDashboardData(response.data.data);
-      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       Alert.alert('Error', 'Failed to load dashboard data');
@@ -75,89 +209,67 @@ const AdminScreen = ({ navigation }) => {
     }
   };
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const token = await AsyncStorage.getItem('accessToken');
-      const [usersRes, approvalsRes] = await Promise.all([
-        axios.get('http://192.168.1.22:3000/api/admin/users', {
-          headers: { Authorization: `Bearer ${token}` },
-          params: { type: userFilter !== 'all' ? userFilter : undefined }
-        }),
-        axios.get('http://192.168.1.22:3000/api/admin/pending-approvals', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      ]);
-
-      setUsers(usersRes.data.data?.users || []);
-      setPendingApprovals(approvalsRes.data.data || []);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      Alert.alert('Error', 'Failed to load users');
-    } finally {
-      setLoading(false);
-    }
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardData();
+    setRefreshing(false);
   };
 
-  const fetchFeedback = async () => {
-    try {
-      setLoading(true);
-      const token = await AsyncStorage.getItem('accessToken');
-      const response = await axios.get(
-        'http://192.168.1.22:3000/api/admin/feedback',
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setFeedbackThreads(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching feedback:', error);
-      Alert.alert('Error', 'Failed to load feedback');
-    } finally {
-      setLoading(false);
-    }
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', onPress: onLogout, style: 'destructive' },
+      ]
+    );
   };
 
-  const handleUserApproval = async (userId, action, reason = '') => {
-    try {
-      const token = await AsyncStorage.getItem('accessToken');
-      const endpoint = action === 'approve' 
-        ? 'http://192.168.1.22:3000/api/admin/approve-user'
-        : 'http://192.168.1.22:3000/api/admin/reject-user';
-
-      const response = await axios.post(
-        endpoint,
-        { userId, reason },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.success) {
-        Alert.alert('Success', `User ${action}d successfully`);
-        fetchUsers();
-        fetchDashboardData();
-      }
-    } catch (error) {
-      console.error(`Error ${action}ing user:`, error);
-      Alert.alert('Error', `Failed to ${action} user`);
-    }
+  const handleUserApproval = (userId, action) => {
+    Alert.alert(
+      `${action === 'approve' ? 'Approve' : 'Reject'} User`,
+      `Are you sure you want to ${action} this user?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: action === 'approve' ? 'Approve' : 'Reject',
+          onPress: () => {
+            // Remove user from pending list
+            setPendingUsers(prev => prev.filter(user => user.user_id !== userId));
+            
+            // Update dashboard stats
+            setDashboardData(prev => ({
+              ...prev,
+              users: {
+                ...prev.users,
+                pendingApprovals: Math.max(0, prev.users.pendingApprovals - 1),
+                totalUsers: action === 'approve' ? prev.users.totalUsers + 1 : prev.users.totalUsers
+              }
+            }));
+            
+            Alert.alert(
+              'Success',
+              `User has been ${action === 'approve' ? 'approved' : 'rejected'} successfully.`
+            );
+          }
+        }
+      ]
+    );
   };
 
   const renderTabBar = () => (
     <View style={styles.tabBar}>
-      {[
-        { key: 'dashboard', label: 'Dashboard', icon: 'grid' },
-        { key: 'users', label: 'Users', icon: 'users' },
-        { key: 'feedback', label: 'Feedback', icon: 'message-circle' },
-        { key: 'reports', label: 'Reports', icon: 'bar-chart-2' },
-      ].map((tab) => (
+      {tabs.map((tab) => (
         <TouchableOpacity
           key={tab.key}
-          style={[styles.tabItem, activeTab === tab.key && styles.activeTab]}
+          style={[styles.tab, activeTab === tab.key && styles.activeTab]}
           onPress={() => setActiveTab(tab.key)}
         >
           <Icon 
             name={tab.icon} 
             size={20} 
-            color={activeTab === tab.key ? '#6366F1' : '#64748B'} 
+            color={activeTab === tab.key ? '#FFFFFF' : theme.colors.textSecondary} 
           />
           <Text style={[
             styles.tabLabel,
@@ -173,153 +285,76 @@ const AdminScreen = ({ navigation }) => {
   const renderDashboard = () => (
     <ScrollView 
       style={styles.tabContent}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchDashboardData} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      showsVerticalScrollIndicator={false}
     >
-      {/* Quick Stats */}
+      {/* Welcome Section */}
+      <View style={styles.welcomeSection}>
+        <Text style={styles.welcomeText}>Admin Dashboard</Text>
+        <Text style={styles.welcomeSubtext}>System overview and management</Text>
+      </View>
+
+      {/* Key Metrics */}
       <View style={styles.statsGrid}>
         <Card style={styles.statCard}>
-          <Icon name="users" size={32} color="#6366F1" />
+          <Icon name="users" size={28} color={theme.colors.primary} />
           <Text style={styles.statNumber}>{dashboardData.users.totalUsers}</Text>
           <Text style={styles.statLabel}>Total Users</Text>
-          {dashboardData.users.pendingApprovals > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{dashboardData.users.pendingApprovals} pending</Text>
-            </View>
-          )}
+          <Text style={styles.statTrend}>+{dashboardData.users.newThisWeek} this week</Text>
         </Card>
 
         <Card style={styles.statCard}>
-          <Icon name="shopping-cart" size={32} color="#10B981" />
+          <Icon name="clock" size={28} color={theme.colors.warning} />
+          <Text style={styles.statNumber}>{dashboardData.users.pendingApprovals}</Text>
+          <Text style={styles.statLabel}>Pending Approvals</Text>
+          <Text style={styles.statTrend}>Requires attention</Text>
+        </Card>
+
+        <Card style={styles.statCard}>
+          <Icon name="shopping-cart" size={28} color={theme.colors.success} />
           <Text style={styles.statNumber}>{dashboardData.orders.totalOrders}</Text>
           <Text style={styles.statLabel}>Total Orders</Text>
-          <Text style={styles.statSubtext}>
-            ₹{dashboardData.orders.totalValue?.toLocaleString() || 0}
-          </Text>
+          <Text style={styles.statTrend}>{dashboardData.orders.thisMonth} this month</Text>
         </Card>
 
         <Card style={styles.statCard}>
-          <Icon name="message-circle" size={32} color="#F59E0B" />
-          <Text style={styles.statNumber}>{dashboardData.feedback.totalThreads}</Text>
-          <Text style={styles.statLabel}>Feedback Threads</Text>
+          <Icon name="dollar-sign" size={28} color={theme.colors.error} />
+          <Text style={styles.statNumber}>₹{(dashboardData.revenue.total_revenue / 100000).toFixed(1)}L</Text>
+          <Text style={styles.statLabel}>Total Revenue</Text>
+          <Text style={styles.statTrend}>+{dashboardData.revenue.growth}% growth</Text>
         </Card>
-
-        <Card style={styles.statCard}>
-          <Icon name="dollar-sign" size={32} color="#EF4444" />
-          <Text style={styles.statNumber}>₹{dashboardData.revenue.total_revenue?.toLocaleString() || 0}</Text>
-          <Text style={styles.statLabel}>Revenue</Text>
-          <Text style={styles.statSubtext}>{dashboardData.revenue.total_bills} bills paid</Text>
-        </Card>
-      </View>
-
-      {/* Users by Role Chart */}
-      <Card style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Users by Role</Text>
-        {dashboardData.users.byRole.map((item) => (
-          <View key={item.role} style={styles.chartItem}>
-            <Text style={styles.chartLabel}>{item.role}</Text>
-            <View style={styles.chartBar}>
-              <View 
-                style={[
-                  styles.chartProgress, 
-                  { width: `${(item.count / dashboardData.users.totalUsers) * 100}%` }
-                ]} 
-              />
-            </View>
-            <Text style={styles.chartValue}>{item.count}</Text>
-          </View>
-        ))}
-      </Card>
-
-      {/* Recent Orders */}
-      <Card style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Orders</Text>
-          <Button
-            title="View All"
-            variant="secondary"
-            size="small"
-            onPress={() => setActiveTab('orders')}
-          />
-        </View>
-        {dashboardData.orders.recent.slice(0, 5).map((order) => (
-          <View key={order.id} style={styles.listItem}>
-            <View style={styles.listItemContent}>
-              <Text style={styles.listItemTitle}>{order.product_name}</Text>
-              <Text style={styles.listItemSubtitle}>
-                {order.client?.fullname} • ₹{order.total_amount}
-              </Text>
-            </View>
-            <View style={[styles.statusBadge, styles[`status_${order.status}`]]}>
-              <Text style={styles.statusText}>{order.status.toUpperCase()}</Text>
-            </View>
-          </View>
-        ))}
-      </Card>
-    </ScrollView>
-  );
-
-  const renderUsers = () => (
-    <View style={styles.tabContent}>
-      {/* Filter Bar */}
-      <View style={styles.filterBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {['all', 'client', 'sales_purchase', 'marketing', 'office'].map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[
-                styles.filterChip,
-                userFilter === filter && styles.activeFilterChip
-              ]}
-              onPress={() => setUserFilter(filter)}
-            >
-              <Text style={[
-                styles.filterChipText,
-                userFilter === filter && styles.activeFilterChipText
-              ]}>
-                {filter === 'all' ? 'All Users' : filter.replace('_', ' ').toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Input
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search users..."
-          leftIcon="search"
-          style={styles.searchInput}
-        />
       </View>
 
       {/* Pending Approvals */}
-      {pendingApprovals.length > 0 && (
+      {pendingUsers.length > 0 && (
         <Card style={styles.approvalsCard}>
-          <Text style={styles.sectionTitle}>Pending Approvals ({pendingApprovals.length})</Text>
-          {pendingApprovals.slice(0, 3).map((user) => (
-            <View key={user.id} style={styles.approvalItem}>
-              <View style={styles.listItemContent}>
-                <Text style={styles.listItemTitle}>{user.fullname}</Text>
-                <Text style={styles.listItemSubtitle}>
-                  {user.role} • {user.email}
-                </Text>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionTitle}>Pending User Approvals</Text>
+            <TouchableOpacity onPress={() => setShowUserModal(true)}>
+              <Text style={styles.viewAllLink}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {pendingUsers.slice(0, 3).map((user) => (
+            <View key={user.user_id} style={styles.approvalItem}>
+              <View style={styles.approvalInfo}>
+                <Text style={styles.approvalName}>{user.fullname}</Text>
+                <Text style={styles.approvalRole}>{user.role.replace('_', ' & ').toUpperCase()} • {user.department}</Text>
+                <Text style={styles.approvalDate}>Applied {new Date(user.created_at).toLocaleDateString()}</Text>
               </View>
               <View style={styles.approvalActions}>
                 <Button
                   title="Approve"
-                  variant="success"
+                  variant="primary"
                   size="small"
-                  onPress={() => handleUserApproval(user.id, 'approve')}
-                  style={styles.approvalButton}
+                  onPress={() => handleUserApproval(user.user_id, 'approve')}
+                  style={styles.approveButton}
                 />
                 <Button
                   title="Reject"
-                  variant="danger"
+                  variant="outline"
                   size="small"
-                  onPress={() => handleUserApproval(user.id, 'reject')}
-                  style={styles.approvalButton}
+                  onPress={() => handleUserApproval(user.user_id, 'reject')}
                 />
               </View>
             </View>
@@ -327,216 +362,173 @@ const AdminScreen = ({ navigation }) => {
         </Card>
       )}
 
-      {/* Users List */}
-      <Card style={styles.usersCard}>
-        <Text style={styles.sectionTitle}>All Users</Text>
-        <FlatList
-          data={users.filter(user => 
-            searchQuery === '' || 
-            user.fullname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchQuery.toLowerCase())
-          )}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.userItem}
-              onPress={() => {
-                setSelectedUser(item);
-                setShowUserModal(true);
-              }}
-            >
-              <View style={styles.listItemContent}>
-                <Text style={styles.listItemTitle}>{item.fullname}</Text>
-                <Text style={styles.listItemSubtitle}>
-                  {item.role} • {item.email}
-                </Text>
-                <Text style={styles.userMeta}>
-                  Joined: {new Date(item.created_at).toLocaleDateString()}
-                  {item.last_login && ` • Last login: ${new Date(item.last_login).toLocaleDateString()}`}
-                </Text>
-              </View>
-              <View style={[styles.statusBadge, styles[`status_${item.status}`]]}>
-                <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchUsers} />}
-        />
-      </Card>
-    </View>
-  );
-
-  const renderFeedback = () => (
-    <View style={styles.tabContent}>
-      <Card style={styles.feedbackCard}>
-        <Text style={styles.sectionTitle}>Feedback Threads</Text>
-        <FlatList
-          data={feedbackThreads}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.feedbackItem}
-              onPress={() => {
-                setSelectedThread(item.thread_id);
-                setShowFeedbackModal(true);
-              }}
-            >
-              <View style={styles.listItemContent}>
-                <Text style={styles.listItemTitle}>{item.subject}</Text>
-                <Text style={styles.listItemSubtitle}>
-                  From: {item.client?.fullname} • {item.category}
-                </Text>
-                <Text style={styles.userMeta}>
-                  {new Date(item.updated_at).toLocaleDateString()}
-                </Text>
-              </View>
-              <View style={styles.feedbackMeta}>
-                <View style={[styles.statusBadge, styles[`status_${item.status}`]]}>
-                  <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
-                </View>
-                <View style={[styles.priorityBadge, styles[`priority_${item.priority}`]]}>
-                  <Text style={styles.priorityText}>{item.priority.toUpperCase()}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          )}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchFeedback} />}
-        />
-      </Card>
-    </View>
-  );
-
-  const renderReports = () => (
-    <ScrollView style={styles.tabContent}>
-      <Card style={styles.reportsCard}>
-        <Text style={styles.sectionTitle}>Business Reports</Text>
-        
-        <View style={styles.reportsList}>
-          <TouchableOpacity style={styles.reportItem}>
-            <Icon name="users" size={24} color="#6366F1" />
-            <View style={styles.reportContent}>
-              <Text style={styles.reportTitle}>User Analytics</Text>
-              <Text style={styles.reportDescription}>User growth, engagement metrics</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color="#94A3B8" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.reportItem}>
-            <Icon name="shopping-cart" size={24} color="#10B981" />
-            <View style={styles.reportContent}>
-              <Text style={styles.reportTitle}>Sales Report</Text>
-              <Text style={styles.reportDescription}>Order trends, revenue analysis</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color="#94A3B8" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.reportItem}>
-            <Icon name="dollar-sign" size={24} color="#F59E0B" />
-            <View style={styles.reportContent}>
-              <Text style={styles.reportTitle}>Financial Summary</Text>
-              <Text style={styles.reportDescription}>Revenue, payments, outstanding</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color="#94A3B8" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.reportItem}>
-            <Icon name="message-circle" size={24} color="#EF4444" />
-            <View style={styles.reportContent}>
-              <Text style={styles.reportTitle}>Customer Feedback</Text>
-              <Text style={styles.reportDescription}>Satisfaction scores, trends</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color="#94A3B8" />
+      {/* Recent Orders */}
+      <Card style={styles.ordersCard}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionTitle}>Recent Orders</Text>
+          <TouchableOpacity>
+            <Text style={styles.viewAllLink}>View All</Text>
           </TouchableOpacity>
         </View>
+        
+        {dashboardData.orders.recent.map((order) => (
+          <View key={order.id} style={styles.orderItem}>
+            <View style={styles.orderInfo}>
+              <Text style={styles.orderId}>{order.id}</Text>
+              <Text style={styles.orderCustomer}>{order.customer}</Text>
+            </View>
+            <View style={styles.orderAmount}>
+              <Text style={styles.orderPrice}>₹{order.amount.toLocaleString()}</Text>
+              <View style={[styles.orderStatus, { backgroundColor: getStatusColor(order.status) }]}>
+                <Text style={styles.orderStatusText}>{order.status.toUpperCase()}</Text>
+              </View>
+            </View>
+          </View>
+        ))}
       </Card>
+
+      {/* System Health */}
+      <Card style={styles.healthCard}>
+        <Text style={styles.sectionTitle}>System Health</Text>
+        <View style={styles.healthGrid}>
+          <View style={styles.healthItem}>
+            <Text style={styles.healthValue}>{dashboardData.systemHealth.uptime}</Text>
+            <Text style={styles.healthLabel}>Uptime</Text>
+          </View>
+          <View style={styles.healthItem}>
+            <Text style={styles.healthValue}>{dashboardData.systemHealth.activeConnections}</Text>
+            <Text style={styles.healthLabel}>Active Users</Text>
+          </View>
+          <View style={styles.healthItem}>
+            <Text style={styles.healthValue}>{dashboardData.systemHealth.serverLoad}</Text>
+            <Text style={styles.healthLabel}>Server Load</Text>
+          </View>
+          <View style={styles.healthItem}>
+            <Text style={styles.healthValue}>{dashboardData.systemHealth.storageUsed}</Text>
+            <Text style={styles.healthLabel}>Storage Used</Text>
+          </View>
+        </View>
+      </Card>
+
+      <View style={styles.bottomPadding} />
     </ScrollView>
   );
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Admin Dashboard</Text>
-        <TouchableOpacity style={styles.profileButton}>
-          <Icon name="user" size={24} color="#6366F1" />
-        </TouchableOpacity>
+  const renderUsers = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.contentHeader}>
+        <Text style={styles.contentTitle}>User Management</Text>
+        <Text style={styles.contentSubtitle}>{dashboardData.users.totalUsers} total users</Text>
+      </View>
+      
+      {/* User Stats */}
+      <View style={styles.userStatsContainer}>
+        {dashboardData.users.byRole.map((roleData, index) => (
+          <View key={index} style={styles.userStatItem}>
+            <View style={[styles.userStatDot, { backgroundColor: roleData.color }]} />
+            <Text style={styles.userStatRole}>{roleData.role.replace('_', ' & ')}</Text>
+            <Text style={styles.userStatCount}>{roleData.count}</Text>
+          </View>
+        ))}
       </View>
 
+      {/* Pending Approvals */}
+      <ScrollView style={styles.usersList}>
+        <Text style={styles.listTitle}>Pending Approvals ({pendingUsers.length})</Text>
+        {pendingUsers.map((user) => (
+          <Card key={user.user_id} style={styles.userCard}>
+            <View style={styles.userCardHeader}>
+              <View style={styles.userAvatar}>
+                <Text style={styles.userInitial}>
+                  {user.fullname.split(' ').map(n => n[0]).join('')}
+                </Text>
+              </View>
+              <View style={styles.userDetails}>
+                <Text style={styles.userCardName}>{user.fullname}</Text>
+                <Text style={styles.userCardEmail}>{user.email}</Text>
+                <Text style={styles.userCardRole}>{user.role} • {user.department}</Text>
+              </View>
+            </View>
+            <View style={styles.userCardActions}>
+              <Button
+                title="Approve"
+                variant="primary"
+                onPress={() => handleUserApproval(user.user_id, 'approve')}
+                style={styles.userActionButton}
+              />
+              <Button
+                title="Reject"
+                variant="outline"
+                onPress={() => handleUserApproval(user.user_id, 'reject')}
+                style={styles.userActionButton}
+              />
+            </View>
+          </Card>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return renderDashboard();
+      case 'users':
+        return renderUsers();
+      case 'orders':
+        return (
+          <View style={styles.placeholderContent}>
+            <Icon name="shopping-cart" size={64} color={theme.colors.textSecondary} />
+            <Text style={styles.placeholderTitle}>Orders Management</Text>
+            <Text style={styles.placeholderText}>Order management features coming soon</Text>
+          </View>
+        );
+      case 'feedback':
+        return (
+          <View style={styles.placeholderContent}>
+            <Icon name="message-circle" size={64} color={theme.colors.textSecondary} />
+            <Text style={styles.placeholderTitle}>Support Tickets</Text>
+            <Text style={styles.placeholderText}>Support ticket management coming soon</Text>
+          </View>
+        );
+      default:
+        return renderDashboard();
+    }
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      pending: theme.colors.warning,
+      processing: theme.colors.primary,
+      completed: theme.colors.success,
+      cancelled: theme.colors.error,
+    };
+    return colors[status] || theme.colors.textSecondary;
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <View style={styles.userInfo}>
+            <Text style={styles.greeting}>Administrator</Text>
+            <Text style={styles.userName}>{user?.fullname || 'Admin User'}</Text>
+            <Text style={styles.department}>System Administrator</Text>
+          </View>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Icon name="log-out" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Tab Bar */}
       {renderTabBar()}
 
-      {activeTab === 'dashboard' && renderDashboard()}
-      {activeTab === 'users' && renderUsers()}
-      {activeTab === 'feedback' && renderFeedback()}
-      {activeTab === 'reports' && renderReports()}
-
-      {/* User Details Modal */}
-      <Modal visible={showUserModal} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>User Details</Text>
-            <Button
-              title="Close"
-              variant="secondary"
-              size="small"
-              onPress={() => setShowUserModal(false)}
-            />
-          </View>
-          
-          {selectedUser && (
-            <ScrollView style={styles.modalContent}>
-              <View style={styles.userDetails}>
-                <Text style={styles.detailLabel}>Full Name</Text>
-                <Text style={styles.detailValue}>{selectedUser.fullname}</Text>
-                
-                <Text style={styles.detailLabel}>Email</Text>
-                <Text style={styles.detailValue}>{selectedUser.email}</Text>
-                
-                <Text style={styles.detailLabel}>Phone</Text>
-                <Text style={styles.detailValue}>{selectedUser.phone}</Text>
-                
-                <Text style={styles.detailLabel}>Role</Text>
-                <Text style={styles.detailValue}>{selectedUser.role}</Text>
-                
-                <Text style={styles.detailLabel}>Status</Text>
-                <View style={[styles.statusBadge, styles[`status_${selectedUser.status}`]]}>
-                  <Text style={styles.statusText}>{selectedUser.status.toUpperCase()}</Text>
-                </View>
-                
-                <Text style={styles.detailLabel}>Joined</Text>
-                <Text style={styles.detailValue}>
-                  {new Date(selectedUser.created_at).toLocaleDateString()}
-                </Text>
-                
-                {selectedUser.last_login && (
-                  <>
-                    <Text style={styles.detailLabel}>Last Login</Text>
-                    <Text style={styles.detailValue}>
-                      {new Date(selectedUser.last_login).toLocaleDateString()}
-                    </Text>
-                  </>
-                )}
-              </View>
-            </ScrollView>
-          )}
-        </View>
-      </Modal>
-
-      {/* Feedback Thread Modal */}
-      <Modal visible={showFeedbackModal} animationType="slide">
-        <View style={styles.fullScreenModal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Feedback Thread</Text>
-            <Button
-              title="Close"
-              variant="secondary"
-              size="small"
-              onPress={() => setShowFeedbackModal(false)}
-            />
-          </View>
-          {selectedThread && (
-            <FeedbackThread threadId={selectedThread} isAdmin={true} />
-          )}
-        </View>
-      </Modal>
+      {/* Content */}
+      {renderTabContent()}
     </View>
   );
 };
@@ -544,377 +536,429 @@ const AdminScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   header: {
+    backgroundColor: theme.colors.primary,
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    alignItems: 'flex-start',
   },
-  headerTitle: {
+  userInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 4,
+  },
+  userName: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#1E293B',
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 2,
   },
-  profileButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
+  department: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
+  logoutButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  
+  // Tab Bar
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    marginHorizontal: 20,
+    marginTop: -10,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  tabItem: {
+  tab: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 8,
+    borderRadius: 8,
   },
   activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#6366F1',
+    backgroundColor: theme.colors.primary,
   },
   tabLabel: {
     fontSize: 12,
-    color: '#64748B',
-    marginTop: 4,
-  },
-  activeTabLabel: {
-    color: '#6366F1',
+    color: theme.colors.textSecondary,
+    marginLeft: 6,
     fontWeight: '600',
   },
+  activeTabLabel: {
+    color: '#FFFFFF',
+  },
+  
+  // Content
   tabContent: {
     flex: 1,
+    paddingTop: 20,
   },
+  
+  // Welcome Section
+  welcomeSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  welcomeText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  welcomeSubtext: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  
+  // Card Component
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  
+  // Stats Grid
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 16,
-    gap: 12,
+    paddingHorizontal: 20,
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   statCard: {
-    width: '48%',
+    width: (width - 60) / 2,
     alignItems: 'center',
     padding: 16,
+    marginBottom: 12,
+    marginHorizontal: 0,
   },
   statNumber: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#1E293B',
+    fontWeight: 'bold',
+    color: theme.colors.textPrimary,
     marginTop: 8,
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
+    marginBottom: 4,
   },
-  statSubtext: {
+  statTrend: {
     fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 2,
-  },
-  badge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginTop: 4,
-  },
-  badgeText: {
-    fontSize: 10,
-    color: '#92400E',
+    color: theme.colors.success,
     fontWeight: '600',
   },
-  chartCard: {
-    margin: 16,
-    marginTop: 0,
-  },
-  chartTitle: {
+  
+  // Section Title
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1E293B',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
-  chartItem: {
+  
+  // Card Header
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  viewAllLink: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  
+  // Approvals
+  approvalsCard: {},
+  approvalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  approvalInfo: {
+    flex: 1,
+  },
+  approvalName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  approvalRole: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 2,
+  },
+  approvalDate: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  approvalActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  approveButton: {
+    marginRight: 8,
+  },
+  
+  // Orders
+  ordersCard: {},
+  orderItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  orderInfo: {
+    flex: 1,
+  },
+  orderId: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  orderCustomer: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  orderAmount: {
+    alignItems: 'flex-end',
+  },
+  orderPrice: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  orderStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  orderStatusText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  
+  // System Health
+  healthCard: {},
+  healthGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  healthItem: {
+    alignItems: 'center',
+  },
+  healthValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  healthLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  
+  // Button Styles
+  button: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  buttonPrimary: {
+    backgroundColor: theme.colors.primary,
+  },
+  buttonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  buttonSmall: {
+    minWidth: 60,
+  },
+  buttonMedium: {
+    minWidth: 80,
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  buttonTextPrimary: {
+    color: '#FFFFFF',
+  },
+  buttonTextOutline: {
+    color: theme.colors.textPrimary,
+  },
+  
+  // Users Tab
+  contentHeader: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  contentTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  contentSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  userStatsContainer: {
+    backgroundColor: theme.colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  userStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  userStatDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  userStatRole: {
+    flex: 1,
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+    textTransform: 'capitalize',
+  },
+  userStatCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  usersList: {
+    flex: 1,
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  userCard: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  userCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
   },
-  chartLabel: {
-    fontSize: 14,
-    color: '#64748B',
-    width: 100,
-  },
-  chartBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    marginHorizontal: 12,
-  },
-  chartProgress: {
-    height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 4,
-  },
-  chartValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-    width: 30,
-    textAlign: 'right',
-  },
-  sectionCard: {
-    margin: 16,
-    marginTop: 0,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  userAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.primary,
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  sectionTitle: {
+  userInitial: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  listItemContent: {
-    flex: 1,
-  },
-  listItemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  listItemSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  userMeta: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  status_pending: {
-    backgroundColor: '#FEF3C7',
-  },
-  status_approved: {
-    backgroundColor: '#D1FAE5',
-  },
-  status_active: {
-    backgroundColor: '#D1FAE5',
-  },
-  status_rejected: {
-    backgroundColor: '#FEE2E2',
-  },
-  status_inactive: {
-    backgroundColor: '#F1F5F9',
-  },
-  status_open: {
-    backgroundColor: '#DBEAFE',
-  },
-  status_in_progress: {
-    backgroundColor: '#FEF3C7',
-  },
-  status_resolved: {
-    backgroundColor: '#D1FAE5',
-  },
-  status_closed: {
-    backgroundColor: '#F1F5F9',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  filterBar: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-    marginRight: 8,
-  },
-  activeFilterChip: {
-    backgroundColor: '#6366F1',
-  },
-  filterChipText: {
-    fontSize: 14,
-    color: '#64748B',
-  },
-  activeFilterChipText: {
+    fontWeight: 'bold',
     color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  searchContainer: {
-    padding: 16,
-    paddingTop: 0,
-    backgroundColor: '#FFFFFF',
-  },
-  searchInput: {
-    marginBottom: 0,
-  },
-  approvalsCard: {
-    margin: 16,
-    marginTop: 0,
-  },
-  approvalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  approvalActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  approvalButton: {
-    minWidth: 80,
-  },
-  usersCard: {
-    margin: 16,
-    marginTop: 0,
-    flex: 1,
-  },
-  userItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  feedbackCard: {
-    margin: 16,
-    flex: 1,
-  },
-  feedbackItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  feedbackMeta: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  priorityBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  priority_low: {
-    backgroundColor: '#F0FDF4',
-  },
-  priority_medium: {
-    backgroundColor: '#FFFBEB',
-  },
-  priority_high: {
-    backgroundColor: '#FEE2E2',
-  },
-  priorityText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  reportsCard: {
-    margin: 16,
-  },
-  reportsList: {
-    gap: 16,
-  },
-  reportItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  reportContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  reportTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  reportDescription: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  fullScreenModal: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    paddingTop: 44,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
   },
   userDetails: {
-    gap: 16,
+    flex: 1,
   },
-  detailLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 4,
-  },
-  detailValue: {
+  userCardName: {
     fontSize: 16,
-    color: '#1E293B',
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 2,
+  },
+  userCardEmail: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 2,
+  },
+  userCardRole: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textTransform: 'capitalize',
+  },
+  userCardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  userActionButton: {
+    marginLeft: 8,
+  },
+  
+  // Placeholder Content
+  placeholderContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  placeholderTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  
+  bottomPadding: {
+    height: 20,
   },
 });
 

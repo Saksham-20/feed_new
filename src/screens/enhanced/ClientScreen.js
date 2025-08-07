@@ -4,84 +4,132 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  TouchableOpacity,
   RefreshControl,
   Alert,
-  Modal,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import Button from '../../components/common/Button';
-import Card from '../../components/common/Card.js';
-import Input from '../../components/common/Input';
-import FeedbackThread from '../../components/business/FeedbackThread';
-import Icon from 'react-native-vector-icons/Feather';
 
-const ClientScreen = ({ navigation }) => {
-  const [user, setUser] = useState(null);
-  const [orders, setOrders] = useState([]);
-  const [bills, setBills] = useState([]);
-  const [feedbackThreads, setFeedbackThreads] = useState([]);
+// Try to import dependencies with fallbacks
+let Icon;
+try {
+  Icon = require('react-native-vector-icons/Feather').default;
+} catch (error) {
+  console.warn('Vector icons not available, using fallback');
+  Icon = ({ name, size, color, style }) => (
+    <View style={[{ width: size, height: size, backgroundColor: color, borderRadius: size/2 }, style]} />
+  );
+}
+
+const { width } = Dimensions.get('window');
+
+// Theme
+const theme = {
+  colors: {
+    primary: '#007AFF',
+    secondary: '#FF6B35',
+    success: '#10B981',
+    warning: '#F59E0B',
+    error: '#EF4444',
+    textPrimary: '#1F2937',
+    textSecondary: '#6B7280',
+    surface: '#FFFFFF',
+    background: '#F9FAFB',
+    border: '#E5E7EB',
+  }
+};
+
+// Simple Card Component
+const Card = ({ children, style }) => (
+  <View style={[styles.card, style]}>
+    {children}
+  </View>
+);
+
+const ClientScreen = ({ user, onLogout }) => {
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
-  const [showOrderForm, setShowOrderForm] = useState(false);
-  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
-  const [selectedThread, setSelectedThread] = useState(null);
-
-  // Order form state
-  const [orderForm, setOrderForm] = useState({
-    productName: '',
-    productCategory: '',
-    quantity: '',
-    unit: 'pcs',
-    description: '',
-    priority: 'medium',
-    expectedDeliveryDate: '',
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Dashboard data state
+  const [dashboardData, setDashboardData] = useState({
+    orders: {
+      total: 8,
+      pending: 2,
+      completed: 5,
+      cancelled: 1,
+      thisMonth: 3,
+      totalValue: 145000,
+      recentOrders: [
+        { id: 'ORD-2024-089', product: 'Business Software License', amount: 25000, status: 'delivered', date: '2024-01-18' },
+        { id: 'ORD-2024-087', product: 'Office Equipment', amount: 35000, status: 'processing', date: '2024-01-16' },
+        { id: 'ORD-2024-083', product: 'Marketing Package', amount: 15000, status: 'pending', date: '2024-01-14' },
+        { id: 'ORD-2024-078', product: 'Website Development', amount: 45000, status: 'completed', date: '2024-01-10' }
+      ]
+    },
+    bills: {
+      total: 6,
+      pending: 2,
+      paid: 3,
+      overdue: 1,
+      totalAmount: 87000,
+      pendingAmount: 32000,
+      recentBills: [
+        { id: 'INV-2024-045', description: 'Monthly Service Fee', amount: 15000, status: 'paid', dueDate: '2024-01-15' },
+        { id: 'INV-2024-042', description: 'Project Consultation', amount: 22000, status: 'pending', dueDate: '2024-01-25' },
+        { id: 'INV-2024-038', description: 'Software License', amount: 18000, status: 'overdue', dueDate: '2024-01-12' }
+      ]
+    },
+    support: {
+      totalTickets: 4,
+      openTickets: 1,
+      resolvedTickets: 3,
+      recentTickets: [
+        { id: 'TIC-2024-023', subject: 'Login Issues', status: 'open', priority: 'medium', created: '2024-01-17' },
+        { id: 'TIC-2024-019', subject: 'Feature Request', status: 'resolved', priority: 'low', created: '2024-01-12' },
+        { id: 'TIC-2024-015', subject: 'Payment Problem', status: 'resolved', priority: 'high', created: '2024-01-08' }
+      ]
+    },
+    profile: {
+      completeness: 85,
+      missingFields: ['Secondary Phone', 'Company Size'],
+      lastUpdated: '2024-01-15'
+    }
   });
 
-  // Feedback form state
-  const [feedbackForm, setFeedbackForm] = useState({
-    subject: '',
-    category: 'general',
-    priority: 'medium',
-    message: '',
-  });
+  const tabs = [
+    { key: 'dashboard', label: 'Overview', icon: 'home' },
+    { key: 'orders', label: 'Orders', icon: 'shopping-cart' },
+    { key: 'bills', label: 'Bills', icon: 'credit-card' },
+    { key: 'support', label: 'Support', icon: 'help-circle' },
+  ];
 
   useEffect(() => {
-    loadUserData();
     fetchDashboardData();
   }, []);
-
-  const loadUserData = async () => {
-    try {
-      const userData = await AsyncStorage.getItem('user');
-      if (userData) {
-        setUser(JSON.parse(userData));
-      }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    }
-  };
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem('accessToken');
       
-      // Fetch orders, bills, and feedback in parallel
-      const [ordersRes, billsRes, feedbackRes] = await Promise.all([
-        axios.get('http://192.168.1.22:3000/api/client/orders', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        axios.get('http://192.168.1.22:3000/api/client/bills', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        axios.get('http://192.168.1.22:3000/api/client/feedback', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      ]);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Update with fresh mock data
+      setDashboardData(prevData => ({
+        ...prevData,
+        orders: {
+          ...prevData.orders,
+          total: 8 + Math.floor(Math.random() * 3),
+          thisMonth: 3 + Math.floor(Math.random() * 2),
+        },
+        bills: {
+          ...prevData.bills,
+          pendingAmount: 32000 + Math.floor(Math.random() * 10000),
+        }
+      }));
 
-      setOrders(ordersRes.data.data || []);
-      setBills(billsRes.data.data || []);
-      setFeedbackThreads(feedbackRes.data.data || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       Alert.alert('Error', 'Failed to load dashboard data');
@@ -90,502 +138,1052 @@ const ClientScreen = ({ navigation }) => {
     }
   };
 
-  const submitOrder = async () => {
-    try {
-      // Validate form
-      if (!orderForm.productName || !orderForm.quantity) {
-        Alert.alert('Error', 'Please fill in all required fields');
-        return;
-      }
-
-      const token = await AsyncStorage.getItem('accessToken');
-      const response = await axios.post(
-        'http://192.168.1.22:3000/api/client/orders',
-        orderForm,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.success) {
-        Alert.alert('Success', 'Order submitted successfully');
-        setShowOrderForm(false);
-        setOrderForm({
-          productName: '',
-          productCategory: '',
-          quantity: '',
-          unit: 'pcs',
-          description: '',
-          priority: 'medium',
-          expectedDeliveryDate: '',
-        });
-        fetchDashboardData();
-      }
-    } catch (error) {
-      console.error('Error submitting order:', error);
-      Alert.alert('Error', 'Failed to submit order');
-    }
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardData();
+    setRefreshing(false);
   };
 
-  const submitFeedback = async () => {
-    try {
-      if (!feedbackForm.subject || !feedbackForm.message) {
-        Alert.alert('Error', 'Please fill in all required fields');
-        return;
-      }
-
-      const token = await AsyncStorage.getItem('accessToken');
-      const response = await axios.post(
-        'http://192.168.1.22:3000/api/client/feedback',
-        feedbackForm,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.success) {
-        Alert.alert('Success', 'Feedback submitted successfully');
-        setShowFeedbackForm(false);
-        setFeedbackForm({
-          subject: '',
-          category: 'general',
-          priority: 'medium',
-          message: '',
-        });
-        fetchDashboardData();
-      }
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
-      Alert.alert('Error', 'Failed to submit feedback');
-    }
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', onPress: onLogout, style: 'destructive' },
+      ]
+    );
   };
 
-  const renderQuickStats = () => (
-    <View style={styles.statsContainer}>
-      <Card style={styles.statCard}>
-        <Icon name="shopping-cart" size={24} color="#6366F1" />
-        <Text style={styles.statNumber}>{orders.length}</Text>
-        <Text style={styles.statLabel}>Orders</Text>
-      </Card>
-      <Card style={styles.statCard}>
-        <Icon name="file-text" size={24} color="#10B981" />
-        <Text style={styles.statNumber}>{bills.length}</Text>
-        <Text style={styles.statLabel}>Bills</Text>
-      </Card>
-      <Card style={styles.statCard}>
-        <Icon name="message-circle" size={24} color="#F59E0B" />
-        <Text style={styles.statNumber}>{feedbackThreads.length}</Text>
-        <Text style={styles.statLabel}>Conversations</Text>
-      </Card>
+  const handleQuickAction = (actionTitle) => {
+    Alert.alert(actionTitle, `${actionTitle} feature will be implemented soon.`);
+  };
+
+  const renderTabBar = () => (
+    <View style={styles.tabBar}>
+      {tabs.map((tab) => (
+        <TouchableOpacity
+          key={tab.key}
+          style={[styles.tab, activeTab === tab.key && styles.activeTab]}
+          onPress={() => setActiveTab(tab.key)}
+        >
+          <Icon 
+            name={tab.icon} 
+            size={20} 
+            color={activeTab === tab.key ? '#FFFFFF' : theme.colors.textSecondary} 
+          />
+          <Text style={[
+            styles.tabLabel,
+            activeTab === tab.key && styles.activeTabLabel
+          ]}>
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 
-  const renderRecentOrders = () => (
-    <Card style={styles.sectionCard}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Orders</Text>
-        <Button
-          title="New Order"
-          variant="primary"
-          size="small"
-          onPress={() => setShowOrderForm(true)}
-        />
+  const renderDashboard = () => (
+    <ScrollView 
+      style={styles.tabContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Welcome Section */}
+      <View style={styles.welcomeSection}>
+        <Text style={styles.welcomeText}>Welcome back, {user?.fullname?.split(' ')[0] || 'Client'}!</Text>
+        <Text style={styles.welcomeSubtext}>Here's your account overview</Text>
       </View>
-      
-      {orders.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Icon name="shopping-cart" size={48} color="#94A3B8" />
-          <Text style={styles.emptyText}>No orders yet</Text>
-          <Text style={styles.emptySubtext}>Create your first order to get started</Text>
+
+      {/* Key Metrics */}
+      <View style={styles.statsGrid}>
+        <Card style={styles.statCard}>
+          <Icon name="shopping-cart" size={28} color={theme.colors.primary} />
+          <Text style={styles.statNumber}>{dashboardData.orders.total}</Text>
+          <Text style={styles.statLabel}>Total Orders</Text>
+          <Text style={styles.statTrend}>{dashboardData.orders.thisMonth} this month</Text>
+        </Card>
+
+        <Card style={styles.statCard}>
+          <Icon name="credit-card" size={28} color={theme.colors.warning} />
+          <Text style={styles.statNumber}>{dashboardData.bills.pending}</Text>
+          <Text style={styles.statLabel}>Pending Bills</Text>
+          <Text style={styles.statTrend}>₹{(dashboardData.bills.pendingAmount / 1000).toFixed(0)}K due</Text>
+        </Card>
+
+        <Card style={styles.statCard}>
+          <Icon name="check-circle" size={28} color={theme.colors.success} />
+          <Text style={styles.statNumber}>{dashboardData.orders.completed}</Text>
+          <Text style={styles.statLabel}>Completed Orders</Text>
+          <Text style={styles.statTrend}>All delivered</Text>
+        </Card>
+
+        <Card style={styles.statCard}>
+          <Icon name="help-circle" size={28} color={theme.colors.error} />
+          <Text style={styles.statNumber}>{dashboardData.support.openTickets}</Text>
+          <Text style={styles.statLabel}>Open Tickets</Text>
+          <Text style={styles.statTrend}>{dashboardData.support.totalTickets} total</Text>
+        </Card>
+      </View>
+
+      {/* Quick Actions */}
+      <Card style={styles.quickActionsCard}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.quickActionsGrid}>
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => handleQuickAction('Place New Order')}
+          >
+            <Icon name="plus-circle" size={24} color={theme.colors.success} />
+            <Text style={styles.quickActionText}>New Order</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => handleQuickAction('Pay Bills')}
+          >
+            <Icon name="credit-card" size={24} color={theme.colors.warning} />
+            <Text style={styles.quickActionText}>Pay Bills</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => handleQuickAction('Track Orders')}
+          >
+            <Icon name="truck" size={24} color={theme.colors.primary} />
+            <Text style={styles.quickActionText}>Track Orders</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => handleQuickAction('Get Support')}
+          >
+            <Icon name="message-circle" size={24} color={theme.colors.secondary} />
+            <Text style={styles.quickActionText}>Get Support</Text>
+          </TouchableOpacity>
         </View>
-      ) : (
-        orders.slice(0, 3).map((order) => (
-          <View key={order.id} style={styles.listItem}>
-            <View style={styles.listItemContent}>
-              <Text style={styles.listItemTitle}>{order.product_name}</Text>
-              <Text style={styles.listItemSubtitle}>
-                Qty: {order.quantity} {order.unit} • {order.status}
-              </Text>
+      </Card>
+
+      {/* Recent Orders */}
+      <Card style={styles.ordersCard}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionTitle}>Recent Orders</Text>
+          <TouchableOpacity onPress={() => setActiveTab('orders')}>
+            <Text style={styles.viewAllLink}>View All</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {dashboardData.orders.recentOrders.slice(0, 3).map((order) => (
+          <View key={order.id} style={styles.orderItem}>
+            <View style={styles.orderInfo}>
+              <Text style={styles.orderId}>{order.id}</Text>
+              <Text style={styles.orderProduct}>{order.product}</Text>
+              <Text style={styles.orderDate}>Ordered: {new Date(order.date).toLocaleDateString()}</Text>
             </View>
-            <View style={[styles.statusBadge, styles[`status_${order.status}`]]}>
-              <Text style={styles.statusText}>{order.status.toUpperCase()}</Text>
+            <View style={styles.orderAmount}>
+              <Text style={styles.orderPrice}>₹{order.amount.toLocaleString()}</Text>
+              <View style={[styles.orderStatus, { backgroundColor: getStatusColor(order.status) }]}>
+                <Text style={styles.orderStatusText}>{order.status.toUpperCase()}</Text>
+              </View>
             </View>
           </View>
-        ))
+        ))}
+      </Card>
+
+      {/* Pending Bills */}
+      {dashboardData.bills.pending > 0 && (
+        <Card style={styles.billsCard}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionTitle}>Pending Bills</Text>
+            <TouchableOpacity onPress={() => setActiveTab('bills')}>
+              <Text style={styles.viewAllLink}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {dashboardData.bills.recentBills.filter(bill => bill.status === 'pending' || bill.status === 'overdue').map((bill) => (
+            <View key={bill.id} style={styles.billItem}>
+              <View style={styles.billInfo}>
+                <Text style={styles.billId}>{bill.id}</Text>
+                <Text style={styles.billDescription}>{bill.description}</Text>
+                <Text style={[styles.billDue, bill.status === 'overdue' && styles.billOverdue]}>
+                  Due: {new Date(bill.dueDate).toLocaleDateString()}
+                </Text>
+              </View>
+              <View style={styles.billAmount}>
+                <Text style={styles.billPrice}>₹{bill.amount.toLocaleString()}</Text>
+                <TouchableOpacity 
+                  style={[styles.payButton, bill.status === 'overdue' && styles.payButtonUrgent]}
+                  onPress={() => handleQuickAction('Pay Bill')}
+                >
+                  <Text style={styles.payButtonText}>
+                    {bill.status === 'overdue' ? 'PAY NOW' : 'PAY'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </Card>
       )}
-    </Card>
+
+      {/* Profile Completion */}
+      {dashboardData.profile.completeness < 100 && (
+        <Card style={styles.profileCard}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionTitle}>Complete Your Profile</Text>
+            <Text style={styles.completionPercentage}>{dashboardData.profile.completeness}%</Text>
+          </View>
+          
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${dashboardData.profile.completeness}%` }]} />
+            </View>
+          </View>
+          
+          <Text style={styles.missingFieldsText}>
+            Missing: {dashboardData.profile.missingFields.join(', ')}
+          </Text>
+          
+          <TouchableOpacity 
+            style={styles.completeProfileButton}
+            onPress={() => handleQuickAction('Complete Profile')}
+          >
+            <Text style={styles.completeProfileText}>Complete Profile</Text>
+            <Icon name="arrow-right" size={16} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </Card>
+      )}
+
+      <View style={styles.bottomPadding} />
+    </ScrollView>
   );
 
-  const renderRecentBills = () => (
-    <Card style={styles.sectionCard}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Bills</Text>
-        <Button
-          title="View All"
-          variant="secondary"
-          size="small"
-          onPress={() => navigation.navigate('Bills')}
-        />
+  const renderOrders = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.contentHeader}>
+        <Text style={styles.contentTitle}>My Orders</Text>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => handleQuickAction('New Order')}
+        >
+          <Icon name="plus" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
       
-      {bills.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Icon name="file-text" size={48} color="#94A3B8" />
-          <Text style={styles.emptyText}>No bills yet</Text>
+      {/* Order Stats */}
+      <View style={styles.orderStatsContainer}>
+        <View style={styles.orderStatItem}>
+          <View style={[styles.orderStatDot, { backgroundColor: theme.colors.success }]} />
+          <Text style={styles.orderStatLabel}>Completed</Text>
+          <Text style={styles.orderStatCount}>{dashboardData.orders.completed}</Text>
         </View>
-      ) : (
-        bills.slice(0, 3).map((bill) => (
-          <View key={bill.id} style={styles.listItem}>
-            <View style={styles.listItemContent}>
-              <Text style={styles.listItemTitle}>Bill #{bill.bill_number}</Text>
-              <Text style={styles.listItemSubtitle}>
-                ₹{bill.total_amount} • Due: {new Date(bill.due_date).toLocaleDateString()}
-              </Text>
+        <View style={styles.orderStatItem}>
+          <View style={[styles.orderStatDot, { backgroundColor: theme.colors.primary }]} />
+          <Text style={styles.orderStatLabel}>Processing</Text>
+          <Text style={styles.orderStatCount}>{dashboardData.orders.pending}</Text>
+        </View>
+        <View style={styles.orderStatItem}>
+          <View style={[styles.orderStatDot, { backgroundColor: theme.colors.error }]} />
+          <Text style={styles.orderStatLabel}>Cancelled</Text>
+          <Text style={styles.orderStatCount}>{dashboardData.orders.cancelled}</Text>
+        </View>
+      </View>
+
+      <ScrollView style={styles.ordersList}>
+        <Text style={styles.listTitle}>All Orders ({dashboardData.orders.total})</Text>
+        {dashboardData.orders.recentOrders.map((order) => (
+          <Card key={order.id} style={styles.orderCard}>
+            <View style={styles.orderCardHeader}>
+              <Text style={styles.orderCardId}>{order.id}</Text>
+              <View style={[styles.orderCardStatus, { backgroundColor: getStatusColor(order.status) }]}>
+                <Text style={styles.orderCardStatusText}>{order.status.toUpperCase()}</Text>
+              </View>
             </View>
-            <View style={[styles.statusBadge, styles[`payment_${bill.payment_status}`]]}>
-              <Text style={styles.statusText}>{bill.payment_status.toUpperCase()}</Text>
+            
+            <Text style={styles.orderCardProduct}>{order.product}</Text>
+            <View style={styles.orderCardFooter}>
+              <Text style={styles.orderCardDate}>Ordered: {new Date(order.date).toLocaleDateString()}</Text>
+              <Text style={styles.orderCardAmount}>₹{order.amount.toLocaleString()}</Text>
             </View>
-          </View>
-        ))
-      )}
-    </Card>
+            
+            <View style={styles.orderCardActions}>
+              <TouchableOpacity 
+                style={styles.orderActionButton}
+                onPress={() => handleQuickAction('Track Order')}
+              >
+                <Icon name="truck" size={16} color={theme.colors.primary} />
+                <Text style={styles.orderActionText}>Track</Text>
+              </TouchableOpacity>
+              
+              {order.status === 'completed' && (
+                <TouchableOpacity 
+                  style={styles.orderActionButton}
+                  onPress={() => handleQuickAction('Reorder')}
+                >
+                  <Icon name="repeat" size={16} color={theme.colors.success} />
+                  <Text style={styles.orderActionText}>Reorder</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </Card>
+        ))}
+      </ScrollView>
+    </View>
   );
 
-  const renderFeedbackThreads = () => (
-    <Card style={styles.sectionCard}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Conversations</Text>
-        <Button
-          title="New Message"
-          variant="primary"
-          size="small"
-          onPress={() => setShowFeedbackForm(true)}
-        />
+  const renderBills = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.contentHeader}>
+        <Text style={styles.contentTitle}>My Bills</Text>
+        <Text style={styles.contentSubtitle}>₹{(dashboardData.bills.pendingAmount / 1000).toFixed(0)}K pending</Text>
       </View>
-      
-      {feedbackThreads.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Icon name="message-circle" size={48} color="#94A3B8" />
-          <Text style={styles.emptyText}>No conversations yet</Text>
-          <Text style={styles.emptySubtext}>Start a conversation with our team</Text>
-        </View>
-      ) : (
-        feedbackThreads.slice(0, 3).map((thread) => (
-          <View key={thread.id} style={styles.listItem}>
-            <View style={styles.listItemContent}>
-              <Text style={styles.listItemTitle}>{thread.subject}</Text>
-              <Text style={styles.listItemSubtitle}>
-                {thread.category} • {new Date(thread.updated_at).toLocaleDateString()}
-              </Text>
+
+      <ScrollView style={styles.billsList}>
+        {dashboardData.bills.recentBills.map((bill) => (
+          <Card key={bill.id} style={styles.billCard}>
+            <View style={styles.billCardHeader}>
+              <Text style={styles.billCardId}>{bill.id}</Text>
+              <View style={[styles.billCardStatus, { backgroundColor: getBillStatusColor(bill.status) }]}>
+                <Text style={styles.billCardStatusText}>{bill.status.toUpperCase()}</Text>
+              </View>
             </View>
-            <Button
-              title="View"
-              variant="outline"
-              size="small"
-              onPress={() => setSelectedThread(thread.thread_id)}
-            />
-          </View>
-        ))
-      )}
-    </Card>
+            
+            <Text style={styles.billCardDescription}>{bill.description}</Text>
+            <View style={styles.billCardFooter}>
+              <Text style={[styles.billCardDue, bill.status === 'overdue' && styles.billCardOverdue]}>
+                Due: {new Date(bill.dueDate).toLocaleDateString()}
+              </Text>
+              <Text style={styles.billCardAmount}>₹{bill.amount.toLocaleString()}</Text>
+            </View>
+            
+            {bill.status !== 'paid' && (
+              <TouchableOpacity 
+                style={[styles.payBillButton, bill.status === 'overdue' && styles.payBillButtonUrgent]}
+                onPress={() => handleQuickAction('Pay Bill')}
+              >
+                <Icon name="credit-card" size={16} color="#FFFFFF" />
+                <Text style={styles.payBillButtonText}>
+                  {bill.status === 'overdue' ? 'PAY NOW' : 'PAY BILL'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </Card>
+        ))}
+      </ScrollView>
+    </View>
   );
+
+  const renderSupport = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.contentHeader}>
+        <Text style={styles.contentTitle}>Support Tickets</Text>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => handleQuickAction('New Ticket')}
+        >
+          <Icon name="plus" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.supportList}>
+        <Text style={styles.listTitle}>Your Tickets ({dashboardData.support.totalTickets})</Text>
+        {dashboardData.support.recentTickets.map((ticket) => (
+          <Card key={ticket.id} style={styles.ticketCard}>
+            <View style={styles.ticketCardHeader}>
+              <Text style={styles.ticketCardId}>{ticket.id}</Text>
+              <View style={[styles.ticketCardPriority, { backgroundColor: getPriorityColor(ticket.priority) }]}>
+                <Text style={styles.ticketCardPriorityText}>{ticket.priority.toUpperCase()}</Text>
+              </View>
+            </View>
+            
+            <Text style={styles.ticketCardSubject}>{ticket.subject}</Text>
+            <View style={styles.ticketCardFooter}>
+              <Text style={styles.ticketCardDate}>Created: {new Date(ticket.created).toLocaleDateString()}</Text>
+              <View style={[styles.ticketCardStatus, { backgroundColor: getTicketStatusColor(ticket.status) }]}>
+                <Text style={styles.ticketCardStatusText}>{ticket.status.toUpperCase()}</Text>
+              </View>
+            </View>
+          </Card>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return renderDashboard();
+      case 'orders':
+        return renderOrders();
+      case 'bills':
+        return renderBills();
+      case 'support':
+        return renderSupport();
+      default:
+        return renderDashboard();
+    }
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      pending: theme.colors.warning,
+      processing: theme.colors.primary,
+      completed: theme.colors.success,
+      delivered: theme.colors.success,
+      cancelled: theme.colors.error,
+    };
+    return colors[status] || theme.colors.textSecondary;
+  };
+
+  const getBillStatusColor = (status) => {
+    const colors = {
+      paid: theme.colors.success,
+      pending: theme.colors.warning,
+      overdue: theme.colors.error,
+    };
+    return colors[status] || theme.colors.textSecondary;
+  };
+
+  const getPriorityColor = (priority) => {
+    const colors = {
+      low: theme.colors.success,
+      medium: theme.colors.warning,
+      high: theme.colors.error,
+    };
+    return colors[priority] || theme.colors.textSecondary;
+  };
+
+  const getTicketStatusColor = (status) => {
+    const colors = {
+      open: theme.colors.error,
+      'in-progress': theme.colors.warning,
+      resolved: theme.colors.success,
+    };
+    return colors[status] || theme.colors.textSecondary;
+  };
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchDashboardData} />}
-    >
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.greeting}>Welcome back, {user?.fullname}!</Text>
-        <Text style={styles.subGreeting}>Here's what's happening with your account</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.userInfo}>
+            <Text style={styles.greeting}>Client Dashboard</Text>
+            <Text style={styles.userName}>{user?.fullname || 'Valued Client'}</Text>
+            <Text style={styles.userEmail}>{user?.email || 'client@company.com'}</Text>
+          </View>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Icon name="log-out" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {renderQuickStats()}
-      {renderRecentOrders()}
-      {renderRecentBills()}
-      {renderFeedbackThreads()}
+      {/* Tab Bar */}
+      {renderTabBar()}
 
-      {/* Order Form Modal */}
-      <Modal visible={showOrderForm} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Create New Order</Text>
-            <Button
-              title="Cancel"
-              variant="secondary"
-              size="small"
-              onPress={() => setShowOrderForm(false)}
-            />
-          </View>
-          
-          <ScrollView style={styles.modalContent}>
-            <Input
-              label="Product Name"
-              value={orderForm.productName}
-              onChangeText={(text) => setOrderForm({...orderForm, productName: text})}
-              placeholder="Enter product name"
-              required
-            />
-            
-            <Input
-              label="Product Category"
-              value={orderForm.productCategory}
-              onChangeText={(text) => setOrderForm({...orderForm, productCategory: text})}
-              placeholder="Enter product category"
-            />
-            
-            <Input
-              label="Quantity"
-              value={orderForm.quantity}
-              onChangeText={(text) => setOrderForm({...orderForm, quantity: text})}
-              placeholder="Enter quantity"
-              keyboardType="numeric"
-              required
-            />
-            
-            <Input
-              label="Description"
-              value={orderForm.description}
-              onChangeText={(text) => setOrderForm({...orderForm, description: text})}
-              placeholder="Additional details"
-              multiline
-              numberOfLines={3}
-            />
-          </ScrollView>
-          
-          <View style={styles.modalFooter}>
-            <Button
-              title="Submit Order"
-              onPress={submitOrder}
-              style={styles.submitButton}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Feedback Form Modal */}
-      <Modal visible={showFeedbackForm} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Send Feedback</Text>
-            <Button
-              title="Cancel"
-              variant="secondary"
-              size="small"
-              onPress={() => setShowFeedbackForm(false)}
-            />
-          </View>
-          
-          <ScrollView style={styles.modalContent}>
-            <Input
-              label="Subject"
-              value={feedbackForm.subject}
-              onChangeText={(text) => setFeedbackForm({...feedbackForm, subject: text})}
-              placeholder="Enter subject"
-              required
-            />
-            
-            <Input
-              label="Message"
-              value={feedbackForm.message}
-              onChangeText={(text) => setFeedbackForm({...feedbackForm, message: text})}
-              placeholder="Enter your message"
-              multiline
-              numberOfLines={5}
-              required
-            />
-          </ScrollView>
-          
-          <View style={styles.modalFooter}>
-            <Button
-              title="Send Message"
-              onPress={submitFeedback}
-              style={styles.submitButton}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Feedback Thread Modal */}
-      <Modal visible={!!selectedThread} animationType="slide">
-        <View style={styles.fullScreenModal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Conversation</Text>
-            <Button
-              title="Close"
-              variant="secondary"
-              size="small"
-              onPress={() => setSelectedThread(null)}
-            />
-          </View>
-          {selectedThread && (
-            <FeedbackThread threadId={selectedThread} isAdmin={false} />
-          )}
-        </View>
-      </Modal>
-    </ScrollView>
+      {/* Content */}
+      {renderTabContent()}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   header: {
-    padding: 20,
-    paddingTop: 60,
+    backgroundColor: theme.colors.primary,
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  userInfo: {
+    flex: 1,
   },
   greeting: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1E293B',
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 4,
   },
-  subGreeting: {
-    fontSize: 16,
-    color: '#64748B',
+  userName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 2,
   },
-  statsContainer: {
+  userEmail: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  logoutButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  
+  // Tab Bar
+  tabBar: {
     flexDirection: 'row',
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    marginHorizontal: 20,
+    marginTop: -10,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  activeTab: {
+    backgroundColor: theme.colors.primary,
+  },
+  tabLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginLeft: 6,
+    fontWeight: '600',
+  },
+  activeTabLabel: {
+    color: '#FFFFFF',
+  },
+  
+  // Content
+  tabContent: {
+    flex: 1,
+    paddingTop: 20,
+  },
+  
+  // Welcome Section
+  welcomeSection: {
     paddingHorizontal: 20,
-    marginBottom: 20,
-    gap: 12,
+    paddingBottom: 20,
+  },
+  welcomeText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  welcomeSubtext: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  
+  // Card Component
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  
+  // Stats Grid
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   statCard: {
-    flex: 1,
+    width: (width - 60) / 2,
     alignItems: 'center',
     padding: 16,
+    marginBottom: 12,
+    marginHorizontal: 0,
   },
   statNumber: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#1E293B',
+    fontWeight: 'bold',
+    color: theme.colors.textPrimary,
     marginTop: 8,
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 4,
   },
-  sectionCard: {
-    margin: 20,
-    marginTop: 0,
+  statTrend: {
+    fontSize: 12,
+    color: theme.colors.success,
+    fontWeight: '600',
   },
-  sectionHeader: {
+  
+  // Section Title
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 16,
+  },
+  
+  // Card Header
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 12,
-  },
-  emptySubtext: {
+  viewAllLink: {
     fontSize: 14,
-    color: '#94A3B8',
-    marginTop: 4,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  completionPercentage: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+  },
+  
+  // Quick Actions
+  quickActionsCard: {},
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  quickAction: {
+    width: (width - 80) / 2,
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: 'rgba(0, 122, 255, 0.05)',
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  quickActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginTop: 8,
     textAlign: 'center',
   },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  listItemContent: {
-    flex: 1,
-  },
-  listItemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  listItemSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  status_pending: {
-    backgroundColor: '#FEF3C7',
-  },
-  status_confirmed: {
-    backgroundColor: '#DBEAFE',
-  },
-  status_processing: {
-    backgroundColor: '#E0E7FF',
-  },
-  status_shipped: {
-    backgroundColor: '#DDD6FE',
-  },
-  status_delivered: {
-    backgroundColor: '#D1FAE5',
-  },
-  payment_pending: {
-    backgroundColor: '#FEF3C7',
-  },
-  payment_paid: {
-    backgroundColor: '#D1FAE5',
-  },
-  payment_overdue: {
-    backgroundColor: '#FEE2E2',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  fullScreenModal: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    paddingTop: 44,
-  },
-  modalHeader: {
+  
+  // Orders
+  ordersCard: {},
+  orderItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: theme.colors.border,
   },
-  modalTitle: {
+  orderInfo: {
+    flex: 1,
+  },
+  orderId: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  orderProduct: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginBottom: 2,
+  },
+  orderDate: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+  },
+  orderAmount: {
+    alignItems: 'flex-end',
+  },
+  orderPrice: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  orderStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  orderStatusText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  
+  // Bills
+  billsCard: {},
+  billItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  billInfo: {
+    flex: 1,
+  },
+  billId: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  billDescription: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginBottom: 2,
+  },
+  billDue: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+  },
+  billOverdue: {
+    color: theme.colors.error,
+    fontWeight: '600',
+  },
+  billAmount: {
+    alignItems: 'flex-end',
+  },
+  billPrice: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  payButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  payButtonUrgent: {
+    backgroundColor: theme.colors.error,
+  },
+  payButtonText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  
+  // Profile
+  profileCard: {},
+  progressContainer: {
+    marginBottom: 12,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: theme.colors.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 4,
+  },
+  missingFieldsText: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+  },
+  completeProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderRadius: 8,
+  },
+  completeProfileText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  
+  // Tab Content Headers
+  contentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  contentTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  contentSubtitle: {
+    fontSize: 14,
+    color: theme.colors.error,
+    fontWeight: '600',
+  },
+  addButton: {
+    backgroundColor: theme.colors.primary,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  // Orders Tab
+  orderStatsContainer: {
+    backgroundColor: theme.colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  orderStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  orderStatDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  orderStatLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+  },
+  orderStatCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  ordersList: {
+    flex: 1,
+  },
+  listTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1E293B',
+    color: theme.colors.textPrimary,
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
-  modalContent: {
+  orderCard: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  orderCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  orderCardId: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  orderCardStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  orderCardStatusText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  orderCardProduct: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+  },
+  orderCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  orderCardDate: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  orderCardAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.textPrimary,
+  },
+  orderCardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  orderActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  orderActionText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  
+  // Bills Tab
+  billsList: {
     flex: 1,
-    padding: 20,
   },
-  modalFooter: {
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+  billCard: {
+    marginHorizontal: 20,
+    marginBottom: 12,
   },
-  submitButton: {
-    width: '100%',
+  billCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  billCardId: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  billCardStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  billCardStatusText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  billCardDescription: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+  },
+  billCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  billCardDue: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  billCardOverdue: {
+    color: theme.colors.error,
+    fontWeight: '600',
+  },
+  billCardAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.textPrimary,
+  },
+  payBillButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+  },
+  payBillButtonUrgent: {
+    backgroundColor: theme.colors.error,
+  },
+  payBillButtonText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  
+  // Support Tab
+  supportList: {
+    flex: 1,
+  },
+  ticketCard: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  ticketCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  ticketCardId: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  ticketCardPriority: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  ticketCardPriorityText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  ticketCardSubject: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+  },
+  ticketCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ticketCardDate: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  ticketCardStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  ticketCardStatusText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  
+  bottomPadding: {
+    height: 20,
   },
 });
 
 export default ClientScreen;
-    
